@@ -1,0 +1,15 @@
+[package]
+name = "scattering_matrix"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+find_peaks = "0.1.5"
+num-complex = "0.4.6"
+itertools = "0.13.0"
+plotters = "0.3.6"
+iter_num_tools = "0.7.1"
+
+[lib]
+name = "scatterning_matrix"       # The name of the target.
+path = "src/scattering_matrix.rs" # The source file of the target.
