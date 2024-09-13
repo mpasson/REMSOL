@@ -86,7 +86,7 @@ fn main() {
     // print_det(&layers, om);
 
     let mut multi_layer = MultiLayer::new(layers);
-    multi_layer.set_iteration(1);
+    multi_layer.set_iteration(3);
     multi_layer.set_solution_threshold(0.5);
 
     multi_layer.solve(om);
