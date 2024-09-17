@@ -36,7 +36,7 @@ impl ScatteringMatrix {
         ScatteringMatrix {
             s11: self.s11 * other.s11 / denominator,
             s12: other.s12 + other.s11 * self.s12 * other.s22 / denominator,
-            s21: self.s21 + self.s22 * other.s21 * self.s22 / denominator,
+            s21: self.s21 + self.s22 * other.s21 * self.s11 / denominator,
             s22: self.s22 * other.s22 / denominator,
         }
     }
@@ -50,8 +50,7 @@ impl ScatteringMatrix {
             s11: Complex::new(1.0, 0.0),
             s12: Complex::new(0.0, 0.0),
             s21: Complex::new(0.0, 0.0),
-            s22: Complex::new(1.0, 0.0
-            ),
+            s22: Complex::new(1.0, 0.0),
         }
     }
 
@@ -170,7 +169,7 @@ impl MultiLayer {
 
         let mut ksolutions = Vec::new();
 
-        for step in [1e-3, 1e-6, 1e-9].into_iter().take(self.iteration) {
+        for step in [1e-3, 1e-6, 1e-9, 1e-12].into_iter().take(self.iteration) {
             ksolutions.clear();
             for (_kmin, _kmax) in solution_backets {
                 let _solutions = self.solve_step(om, _kmin, _kmax, step);

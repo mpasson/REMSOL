@@ -1,10 +1,6 @@
-import numpy as np
 import matplotlib.pyplot as plt
-import scipy.optimize as opt
-import scipy.linalg as la
-import scipy.signal as sig
-import cmath
-import sys
+import numpy as np
+
 # import warnings
 
 # warnings.filterwarnings('error')
@@ -12,10 +8,14 @@ import sys
 
 def compose(S, M):
     C = np.zeros((2, 2), dtype=complex)
-    C[0, 0] = M[0, 0] * S[0, 0] / (1.0 - S[0, 1] * M[1, 0])
-    C[1, 1] = S[1, 1] * M[1, 1] / (1.0 - M[1, 0] * S[0, 1])
-    C[0, 1] = M[0, 1] + M[0, 0] * S[0, 1] * M[1, 1] / (1.0 - S[0, 1] * M[1, 0])
-    C[1, 0] = S[1, 0] + S[1, 1] * M[1, 0] * S[1, 1] / (1.0 - M[1, 0] * S[0, 1])
+    T1 = M[0, 0] / (1.0 - S[0, 1] * M[1, 0])
+    T2 = S[1, 1] / (1.0 - M[1, 0] * S[0, 1])
+
+    C[0, 0] = T1 * S[0, 0]
+    C[1, 1] = T2 * M[1, 1]
+    C[0, 1] = M[0, 1] + T1 * S[0, 1] * M[1, 1]
+    C[1, 0] = S[1, 0] + T2 * M[1, 0] * S[0, 0]
+
     return C
 
 
@@ -196,9 +196,8 @@ def func_determinat(om, d_list, n_list, pol="TE"):
 
 
 if __name__ == "__main__":
-    import numpy as np
     import matplotlib.pyplot as plt
-    from scipy.optimize import minimize
+    import numpy as np
     import scipy.linalg as ln
 
     n_solutions = [
