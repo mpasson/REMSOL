@@ -2,6 +2,8 @@ extern crate find_peaks;
 extern crate itertools;
 extern crate num_complex;
 
+use std::fs::File;
+use std::io::Write;
 use std::{iter::zip, ops::Deref};
 
 use find_peaks::PeakFinder;
@@ -30,13 +32,13 @@ pub struct ScatteringMatrix {
 
 impl ScatteringMatrix {
     pub fn compose(self, other: ScatteringMatrix) -> ScatteringMatrix {
-        let result = ScatteringMatrix {
-            s11: self.s11 * other.s11 / (1.0 - self.s12 * other.s21),
-            s12: other.s12 + other.s11 * self.s12 * other.s22 / (1.0 - self.s12 * other.s21),
-            s21: self.s21 + self.s22 * other.s21 * self.s22 / (1.0 - self.s12 * other.s21),
-            s22: self.s22 * other.s22 / (1.0 - self.s12 * other.s21),
-        };
-        result
+        let denominator = 1.0 - self.s12 * other.s21;
+        ScatteringMatrix {
+            s11: self.s11 * other.s11 / denominator,
+            s12: other.s12 + other.s11 * self.s12 * other.s22 / denominator,
+            s21: self.s21 + self.s22 * other.s21 * self.s11 / denominator,
+            s22: self.s22 * other.s22 / denominator,
+        }
     }
 
     pub fn determinant(&self) -> Complex<f64> {
@@ -44,19 +46,18 @@ impl ScatteringMatrix {
     }
 
     pub fn matrix_start() -> ScatteringMatrix {
-        let matrix = ScatteringMatrix {
+        ScatteringMatrix {
             s11: Complex::new(1.0, 0.0),
             s12: Complex::new(0.0, 0.0),
             s21: Complex::new(0.0, 0.0),
             s22: Complex::new(1.0, 0.0),
-        };
-        matrix
+        }
     }
 
     pub fn matrix_propagation(n: f64, d: f64, om: f64, k: f64) -> ScatteringMatrix {
         let om = Complex::new(om, 0.0);
         let k = Complex::new(k, 0.0);
-        let d: Complex<f64> = Complex::new(d, 0.0);
+        let d = Complex::new(d, 0.0);
         let a = ((om * n).powi(2) - k.powi(2)).sqrt();
         let phase = Complex::new(0.0, 1.0) * a * d;
         ScatteringMatrix {
@@ -75,13 +76,12 @@ impl ScatteringMatrix {
 
         let k1 = ((om * n1).powi(2) - k.powi(2)).sqrt();
         let k2 = ((om * n2).powi(2) - k.powi(2)).sqrt();
-        let c = ScatteringMatrix {
+        ScatteringMatrix {
             s11: 2.0 * k2 / (k1 + k2),
             s12: (k2 - k1) / (k1 + k2),
             s21: (k1 - k2) / (k1 + k2),
             s22: 2.0 * k1 / (k1 + k2),
-        };
-        c
+        }
     }
 }
 
@@ -89,6 +89,7 @@ pub struct MultiLayer {
     layers: Vec<Layer>,
     iteration: usize,
     solution_threshold: f64,
+    plot_index: i32,
 }
 
 impl MultiLayer {
@@ -97,6 +98,7 @@ impl MultiLayer {
             layers: layers,
             iteration: 3,
             solution_threshold: 1.0,
+            plot_index: 0,
         }
     }
 
@@ -120,7 +122,7 @@ impl MultiLayer {
         find_minmax_n(&self.layers)
     }
 
-    fn solve_step(&self, om: f64, k_min: f64, k_max: f64, step: f64) -> Vec<f64> {
+    fn solve_step(&mut self, om: f64, k_min: f64, k_max: f64, step: f64) -> Vec<f64> {
         let kv: Vec<f64> = iter_num_tools::arange(k_min..k_max, step).collect();
         let det: Vec<f64> = kv
             .clone()
@@ -128,8 +130,14 @@ impl MultiLayer {
             .map(|k| self.calculate_structure_determinant(om, k).norm().log10())
             .collect();
 
-        for (k, a) in zip(&kv, &det) {
-            println!("{:?} {:?}", k, a);
+        {
+            let mut file = File::create(format!("det_{:}.txt", self.plot_index)).unwrap();
+            self.plot_index += 1;
+            for (k, a) in zip(&kv, &det) {
+                // println!("{:?} {:?}", k, a);
+                file.write_all(format!("{:?} {:?}\n", k, a).as_bytes())
+                    .unwrap();
+            }
         }
         let mut peak_finder = PeakFinder::new(&det);
         let peaks = peak_finder
@@ -152,16 +160,16 @@ impl MultiLayer {
         ksolutions.into_iter().map(|k| *k).collect::<Vec<_>>()
     }
 
-    pub fn solve(&self, om: f64) -> Vec<f64> {
+    pub fn solve(&mut self, om: f64) -> Vec<f64> {
         let (min_n, max_n) = self.find_minmax_n();
-        let k_min = om * min_n;
-        let k_max = om * max_n;
+        let k_min = om * min_n + 1e-9;
+        let k_max = om * max_n - 1e-9;
 
         let mut solution_backets = vec![(k_min, k_max)];
 
         let mut ksolutions = Vec::new();
 
-        for step in [1e-3, 1e-6, 1e-9].into_iter().take(self.iteration) {
+        for step in [1e-3, 1e-6, 1e-9, 1e-12].into_iter().take(self.iteration) {
             ksolutions.clear();
             for (_kmin, _kmax) in solution_backets {
                 let _solutions = self.solve_step(om, _kmin, _kmax, step);
@@ -218,8 +226,7 @@ pub fn find_minmax_n(layers: &Vec<Layer>) -> (f64, f64) {
 
 pub fn calculate_structure_determinant(layers: &Vec<Layer>, om: f64, k: f64) -> Complex<f64> {
     let s_matrix = calculate_s_matrix(layers, om, k);
-    let determinant = s_matrix.determinant();
-    determinant
+    s_matrix.determinant()
 }
 
 fn find_maxima_xy(x_data: Vec<f64>, y_data: Vec<f64>) -> Vec<f64> {
