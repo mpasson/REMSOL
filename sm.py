@@ -209,7 +209,7 @@ if __name__ == "__main__":
         1.143946222685255,
     ]
 
-    d_list = [1.0, 0.6, 0.6, 0.6, 1.0]
+    d_list = [1.0, 0.6, 2.0, 0.6, 1.0]
     n_list = [1.0, 2.0, 1.0, 2.0, 1.0]
     om = 2.0 * np.pi / 1.55
 
@@ -227,7 +227,7 @@ if __name__ == "__main__":
     plt.legend()
     plt.show()
 
-    S = general(k_solutions[2], om, d_list, n_list, "TE")
+    S = general(k_solutions[2], om, d_list, n_list, "TM")
     print("S matrix")
     print(S)
     print(np.abs(S[0, 0] * S[1, 1] - S[0, 1] * S[1, 0]))

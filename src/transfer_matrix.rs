@@ -73,9 +73,9 @@ impl TransferMatrix {
         let k1 = n2.powi(2) * ((om * n1).powi(2) - k.powi(2)).sqrt();
         let k2 = n1.powi(2) * ((om * n2).powi(2) - k.powi(2)).sqrt();
         TransferMatrix {
-            t11: 0.5 * (k2 + k1) / k2,
-            t12: 0.5 * (k1 - k2) / k2,
-            t21: 0.5 * (k1 - k2) / k2,
+            t11: 0.5 * (k2 + k1) / k1,
+            t12: 0.5 * (k1 - k2) / k1,
+            t21: 0.5 * (k1 - k2) / k1,
             t22: 0.5 * (k2 + k1) / k1,
         }
     }

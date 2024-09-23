@@ -1,7 +1,10 @@
 extern crate find_peaks;
 extern crate itertools;
 
-use std::f64::consts::PI;
+use std::cmp::Ordering;
+use std::fs::File;
+use std::io::Write;
+use std::iter::zip;
 
 use crate::enums::BackEnd;
 use crate::enums::Polarization;
@@ -81,17 +84,26 @@ impl MultiLayer {
             })
             .collect();
 
+        {
+            let mut file = File::create(format!("det.txt")).unwrap();
+            // self.plot_index += 1;
+            for (k, a) in zip(&kv, &det) {
+                // println!("{:?} {:?}", k, a);
+                file.write_all(format!("{:?} {:?}\n", k, a).as_bytes())
+                    .unwrap();
+            }
+        }
+
         let mut peak_finder = PeakFinder::new(&det);
         let peaks = peak_finder
             .with_min_height(self.solution_threshold)
-            .with_min_difference(1e-3)
             .find_peaks();
 
         let ksolutions = {
             peaks
                 .into_iter()
-                .map(|p| kv.get(p.middle_position()))
-                .flatten()
+                .map(|p| kv.get(p.middle_position()).unwrap_or_else(|| &0.0))
+                // .flatten()
                 .collect::<Vec<_>>()
         };
 
@@ -119,9 +131,13 @@ impl MultiLayer {
                 .collect::<Vec<_>>();
         }
 
+        for _k in ksolutions.iter() {
+            println!("k = {}", _k);
+        }
+
         let mut n_solutions = ksolutions.into_iter().map(|k| k / om).collect::<Vec<_>>();
 
-        n_solutions.sort_by(|a, b| b.partial_cmp(a).unwrap());
+        n_solutions.sort_by(|a, b| b.partial_cmp(a).unwrap_or_else(|| Ordering::Equal));
         n_solutions
     }
 }
@@ -148,6 +164,7 @@ pub fn find_minmax_n(layers: &Vec<Layer>) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::f64::consts::PI;
 
     fn approx_equal(a: f64, b: f64, epsilon: f64) -> bool {
         (a - b).abs() < epsilon
@@ -257,6 +274,7 @@ mod tests {
         let mut multi_layer = create_coupled_slab_multilayer();
         let om = 2.0 * PI / 1.55;
         multi_layer.set_backend(BackEnd::Transfer);
+        multi_layer.set_solution_threshold(0.0);
 
         let neff = multi_layer.solve(om, Polarization::TE);
         let expected_neff = vec![1.804297929, 1.804296798, 1.192052932, 1.190270579];
@@ -268,6 +286,8 @@ mod tests {
         let mut multi_layer = create_coupled_slab_multilayer();
         let om = 2.0 * PI / 1.55;
         multi_layer.set_backend(BackEnd::Transfer);
+        multi_layer.set_solution_threshold(0.0);
+        multi_layer.set_iteration(3);
 
         let neff = multi_layer.solve(om, Polarization::TM);
         let expected_neff = vec![1.657019473, 1.657015474, 1.035192425, 1.019866805];
