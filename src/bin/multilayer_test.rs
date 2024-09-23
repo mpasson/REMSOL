@@ -1,74 +1,60 @@
 use iter_num_tools;
 use std::f64::consts::PI;
 
-use scatterning_matrix::Layer;
-use scatterning_matrix::MultiLayer;
+use multilayer_solver::enums::Polarization;
+use multilayer_solver::layer::Layer;
+use multilayer_solver::multilayer::MultiLayer;
 
-use scatterning_matrix::calculate_s_matrix;
-use scatterning_matrix::calculate_structure_determinant;
-use scatterning_matrix::find_minmax_n;
+// #[allow(dead_code)]
+// fn find_maxima(layers: &Vec<Layer>, om: f64, k_min: f64, k_max: f64, step: f64) -> Vec<f64> {
+//     let mut going_up = false;
+//     let mut maxima: Vec<f64> = Vec::new();
+//     let mut current = calculate_structure_determinant(&layers, om, k_min)
+//         .norm()
+//         .log10();
+//     let next = calculate_structure_determinant(&layers, om, k_min + step)
+//         .norm()
+//         .log10();
 
-fn print_det(layers: &Vec<Layer>, om: f64) {
-    let (n_min, nmax) = find_minmax_n(layers);
-    let (k_min, k_max) = (n_min * om, nmax * om);
-    let step = 1e-3;
-    for k in iter_num_tools::arange(k_min..k_max, step) {
-        println!(
-            "{} {}",
-            k,
-            calculate_structure_determinant(&layers, om, k).norm()
-        );
-    }
-}
+//     if next > current {
+//         going_up = true;
+//     }
 
-fn find_maxima(layers: &Vec<Layer>, om: f64, k_min: f64, k_max: f64, step: f64) -> Vec<f64> {
-    let mut going_up = false;
-    let mut maxima: Vec<f64> = Vec::new();
-    let mut current = calculate_structure_determinant(&layers, om, k_min)
-        .norm()
-        .log10();
-    let next = calculate_structure_determinant(&layers, om, k_min + step)
-        .norm()
-        .log10();
+//     current = next;
 
-    if next > current {
-        going_up = true;
-    }
+//     for k in iter_num_tools::arange(k_min..k_max, step).skip(2) {
+//         let next = calculate_structure_determinant(&layers, om, k)
+//             .norm()
+//             .log10();
+//         if going_up {
+//             if next < current && current > 1.0 {
+//                 going_up = false;
+//                 maxima.push(k - step);
+//             }
+//         } else {
+//             if next > current {
+//                 going_up = true;
+//             }
+//         }
+//         current = next;
+//         // print!("{} {} {}\n", k, next, going_up);
+//     }
+//     maxima
+// }
 
-    current = next;
-
-    for k in iter_num_tools::arange(k_min..k_max, step).skip(2) {
-        let next = calculate_structure_determinant(&layers, om, k)
-            .norm()
-            .log10();
-        if going_up {
-            if next < current && current > 1.0 {
-                going_up = false;
-                maxima.push(k - step);
-            }
-        } else {
-            if next > current {
-                going_up = true;
-            }
-        }
-        current = next;
-        // print!("{} {} {}\n", k, next, going_up);
-    }
-    maxima
-}
-
-fn print_solutions(solution: &Vec<f64>, layers: &Vec<Layer>, om: f64) {
-    for k in solution.iter() {
-        println!(
-            "{} {}",
-            k / om,
-            calculate_structure_determinant(&layers, om, *k)
-                .norm()
-                .log10()
-        );
-    }
-    println!("");
-}
+// #[allow(dead_code)]
+// fn print_solutions(solution: &Vec<f64>, layers: &Vec<Layer>, om: f64) {
+//     for k in solution.iter() {
+//         println!(
+//             "{} {}",
+//             k / om,
+//             calculate_structure_determinant(&layers, om, *k)
+//                 .norm()
+//                 .log10()
+//         );
+//     }
+//     println!("");
+// }
 
 fn main() {
     let layers: Vec<Layer> = vec![
@@ -89,7 +75,7 @@ fn main() {
     multi_layer.set_iteration(3);
     // multi_layer.set_solution_threshold(0.5);
 
-    multi_layer.solve(om);
+    multi_layer.solve(om, Polarization::TE);
 
     // let (min_n, max_n) = find_minmax_n(&layers);
     // let (min_k, max_k) = (min_n * om, max_n * om);

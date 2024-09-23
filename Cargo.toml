@@ -7,10 +7,9 @@ edition = "2021"
 find_peaks = "0.1.5"
 num-complex = "0.4.6"
 itertools = "0.13.0"
-plotters = "0.3.6"
 iter_num_tools = "0.7.1"
 rand = "0.8.5"
 
 [lib]
-name = "scatterning_matrix"       # The name of the target.
-path = "src/scattering_matrix.rs" # The source file of the target.
+name = "multilayer_solver"       # The name of the target.
+# path = "src/" # The source file of the target.
