@@ -188,7 +188,7 @@ def func_to_optimize(om, d_list, n_list, pol="TE"):
 
 def func_determinat(om, d_list, n_list, pol="TE"):
     def inner(k):
-        T = general(k, om, d_list, n_list, pol)
+        T = generalT(k, om, d_list, n_list, pol)
         return T
         # return np.log10(np.abs(T[0, 0] * T[1, 1] - T[0, 1] * T[1, 0]))
 
@@ -215,15 +215,15 @@ if __name__ == "__main__":
 
     k_solutions = [_ * om for _ in n_solutions]
 
-    det = func_determinat(om, d_list, n_list, "TE")
-    kl = np.linspace(7.2, 7.4, 10001)
+    det = func_determinat(om, d_list, n_list, "TM")
+    kl = np.arange(om, 2.0 * om, 1e-3)
     Ss = [det(k) for k in kl]
 
-    plt.plot(kl, [np.log10(np.abs(ln.det(_))) for _ in Ss], label="det")
-    plt.plot(kl, [np.log10(np.abs(_[0, 0])) for _ in Ss], label="0,0")
-    plt.plot(kl, [np.log10(np.abs(_[0, 1])) for _ in Ss], label="0,1")
-    plt.plot(kl, [np.log10(np.abs(_[1, 0])) for _ in Ss], label="1,0")
-    # plt.plot(kl, [np.log10(np.abs(_[1, 1])) for _ in Ss], label="1,1")
+    # plt.plot(kl, [np.log10(np.abs(ln.det(_))) for _ in Ss], label="det")
+    plt.plot(kl, [np.log10(np.abs(1.0 / _[0, 0])) for _ in Ss], label="0,0")
+    plt.plot(kl, [np.log10(np.abs(1.0 / _[0, 1])) for _ in Ss], label="0,1")
+    plt.plot(kl, [np.log10(np.abs(1.0 / _[1, 0])) for _ in Ss], label="1,0")
+    plt.plot(kl, [np.log10(np.abs(1.0 / _[1, 1])) for _ in Ss], label="1,1")
     plt.legend()
     plt.show()
 

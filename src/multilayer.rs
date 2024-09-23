@@ -7,6 +7,7 @@ use crate::enums::BackEnd;
 use crate::enums::Polarization;
 use crate::layer::Layer;
 use crate::scattering_matrix::calculate_s_matrix;
+use crate::transfer_matrix::calculate_t_matrix;
 // use crate::scattering_matrix::ScatteringMatrix;
 use find_peaks::PeakFinder;
 use num_complex::Complex;
@@ -53,9 +54,7 @@ impl MultiLayer {
             BackEnd::Scattering => {
                 calculate_s_matrix(&self.layers, om, k, polarization).determinant()
             }
-            BackEnd::Transfer => {
-                panic!("Transfer matrix is not implemented yet")
-            }
+            BackEnd::Transfer => 1.0 / calculate_t_matrix(&self.layers, om, k, polarization).t22,
         }
     }
 
@@ -123,10 +122,6 @@ impl MultiLayer {
         let mut n_solutions = ksolutions.into_iter().map(|k| k / om).collect::<Vec<_>>();
 
         n_solutions.sort_by(|a, b| b.partial_cmp(a).unwrap());
-
-        for p in n_solutions.iter() {
-            println!("{:?}", p);
-        }
         n_solutions
     }
 }
@@ -229,6 +224,50 @@ mod tests {
         let mut multi_layer = create_coupled_slab_multilayer();
         let om = 2.0 * PI / 1.55;
         multi_layer.set_backend(BackEnd::Scattering);
+
+        let neff = multi_layer.solve(om, Polarization::TM);
+        let expected_neff = vec![1.657019473, 1.657015474, 1.035192425, 1.019866805];
+        assert_vec_approx_equal(&neff, &expected_neff, 1e-9);
+    }
+
+    #[test]
+    fn test_transfer_slab_te() {
+        let mut multi_layer = create_slab_multilayer();
+        let om = 2.0 * PI / 1.55;
+        multi_layer.set_backend(BackEnd::Transfer);
+
+        let neff = multi_layer.solve(om, Polarization::TE);
+        let expected_neff = vec![1.804297363, 1.191174978];
+        assert_vec_approx_equal(&neff, &expected_neff, 1e-9);
+    }
+
+    #[test]
+    fn test_transfer_slab_tm() {
+        let mut multi_layer = create_slab_multilayer();
+        let om = 2.0 * PI / 1.55;
+        multi_layer.set_backend(BackEnd::Transfer);
+
+        let neff = multi_layer.solve(om, Polarization::TM);
+        let expected_neff = vec![1.657017474, 1.028990635];
+        assert_vec_approx_equal(&neff, &expected_neff, 1e-9);
+    }
+
+    #[test]
+    fn test_transfer_coupled_slab_te() {
+        let mut multi_layer = create_coupled_slab_multilayer();
+        let om = 2.0 * PI / 1.55;
+        multi_layer.set_backend(BackEnd::Transfer);
+
+        let neff = multi_layer.solve(om, Polarization::TE);
+        let expected_neff = vec![1.804297929, 1.804296798, 1.192052932, 1.190270579];
+        assert_vec_approx_equal(&neff, &expected_neff, 1e-9);
+    }
+
+    #[test]
+    fn test_transfer_coupled_slab_tm() {
+        let mut multi_layer = create_coupled_slab_multilayer();
+        let om = 2.0 * PI / 1.55;
+        multi_layer.set_backend(BackEnd::Transfer);
 
         let neff = multi_layer.solve(om, Polarization::TM);
         let expected_neff = vec![1.657019473, 1.657015474, 1.035192425, 1.019866805];
