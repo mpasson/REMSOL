@@ -1,6 +1,7 @@
 extern crate find_peaks;
 extern crate itertools;
 
+use std::cmp::Ordering;
 use std::f64::consts::PI;
 
 use crate::enums::BackEnd;
@@ -122,7 +123,7 @@ impl MultiLayer {
 
         let mut n_solutions = ksolutions.into_iter().map(|k| k / om).collect::<Vec<_>>();
 
-        n_solutions.sort_by(|a, b| b.partial_cmp(a).unwrap());
+        n_solutions.sort_by(|a, b| b.partial_cmp(a).unwrap_or_else(|| Ordering::Equal));
 
         for p in n_solutions.iter() {
             println!("{:?}", p);
