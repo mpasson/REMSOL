@@ -8,7 +8,6 @@ find_peaks = "0.1.5"
 num-complex = "0.4.6"
 itertools = "0.13.0"
 iter_num_tools = "0.7.1"
-rand = "0.8.5"
 
 [lib]
 name = "multilayer_solver"       # The name of the target.

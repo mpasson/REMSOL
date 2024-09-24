@@ -74,8 +74,6 @@ def T_matrix_TM(n1, n2, om, k):
     k1 = np.sqrt((1 + 0j) * ((om * n1) ** 2 - k**2))
     k2 = np.sqrt((1 + 0j) * ((om * n2) ** 2 - k**2))
     C = np.zeros((2, 2), dtype=complex)
-    r = (k2 - k1) / (k1 + k2)
-    t = 2.0 * k2 / (k1 + k2)
     C[0, 1] = -(n1**2) * k2 + n2**2 * k1
     C[1, 0] = -(n1**2) * k2 + n2**2 * k1
     C[0, 0] = n1**2 * k2 + n2**2 * k1
@@ -137,7 +135,6 @@ def slab(k, om, ncore, nclad, s):
     P = prop(ncore, s, om, k)
     I2 = interfaceTM(ncore, nclad, om, k)
     TOT = compose(compose(I1, P), I2)
-    RR = complex(1.0 / np.linalg.det(TOT))
     return 1.0 / np.linalg.det(TOT)
     # return 1.0/np.abs(TOT[0,1])
     # return TOT
@@ -209,8 +206,8 @@ if __name__ == "__main__":
         1.143946222685255,
     ]
 
-    d_list = [1.0, 0.6, 2.0, 0.6, 1.0]
-    n_list = [1.0, 2.0, 1.0, 2.0, 1.0]
+    d_list = [1.0, 0.6, 1.0]
+    n_list = [1.0, 2.0, 1.0]
     om = 2.0 * np.pi / 1.55
 
     k_solutions = [_ * om for _ in n_solutions]
