@@ -10,7 +10,7 @@ REMS (Rust-based Electromagnetic Multi-layer Solver) is a software package for f
 ## Roadmap
 
 - [x] Base scattering matrix method solver implementation
-- [ ] Base transfer matrix method solver implementation
+- [x] Base transfer matrix method solver implementation
 - [ ] Field calculation using transfer matrix method
 - [ ] Field calculation using scattering matrix method
 - [ ] Python bindings
