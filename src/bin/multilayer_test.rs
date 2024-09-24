@@ -1,4 +1,3 @@
-use iter_num_tools;
 use std::f64::consts::PI;
 
 use multilayer_solver::enums::Polarization;
@@ -67,7 +66,6 @@ fn main() {
         // Layer::new(1.0, 1.0),
     ];
     let om = 2.0 * PI / 1.55;
-    let k0 = 0.0;
 
     // print_det(&layers, om);
 

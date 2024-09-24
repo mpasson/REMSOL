@@ -2,43 +2,90 @@ extern crate find_peaks;
 extern crate itertools;
 
 use std::cmp::Ordering;
-use std::f64::consts::PI;
+use std::iter::zip;
 
 use crate::enums::BackEnd;
 use crate::enums::Polarization;
 use crate::layer::Layer;
 use crate::scattering_matrix::calculate_s_matrix;
+use crate::transfer_matrix::calculate_t_matrix;
 // use crate::scattering_matrix::ScatteringMatrix;
 use find_peaks::PeakFinder;
 use num_complex::Complex;
 
+#[derive(Clone)]
+pub struct StepSettings {
+    pub step: f64,
+    pub threshold: f64,
+}
+
 pub struct MultiLayer {
     layers: Vec<Layer>,
     iteration: usize,
-    solution_threshold: f64,
     backend: BackEnd,
+    settings: Vec<StepSettings>,
 }
 
 impl MultiLayer {
     pub fn new(layers: Vec<Layer>) -> MultiLayer {
-        MultiLayer {
+        let mut multilayer = MultiLayer {
             layers: layers,
             iteration: 3,
-            solution_threshold: 2.0,
-            backend: BackEnd::Scattering,
-        }
+            backend: BackEnd::Transfer,
+            settings: vec![],
+        };
+        multilayer.set_backend(BackEnd::Transfer);
+        multilayer
     }
 
     pub fn set_backend(&mut self, backend: BackEnd) {
         self.backend = backend;
+        match backend {
+            BackEnd::Scattering => {
+                self.settings = vec![
+                    StepSettings {
+                        step: 1e-3,
+                        threshold: 2.0,
+                    },
+                    StepSettings {
+                        step: 1e-6,
+                        threshold: 5.0,
+                    },
+                    StepSettings {
+                        step: 1e-9,
+                        threshold: 7.0,
+                    },
+                    StepSettings {
+                        step: 1e-12,
+                        threshold: 9.0,
+                    },
+                ];
+            }
+            BackEnd::Transfer => {
+                self.settings = vec![
+                    StepSettings {
+                        step: 1e-3,
+                        threshold: 0.0,
+                    },
+                    StepSettings {
+                        step: 1e-6,
+                        threshold: 3.0,
+                    },
+                    StepSettings {
+                        step: 1e-9,
+                        threshold: 6.0,
+                    },
+                    StepSettings {
+                        step: 1e-12,
+                        threshold: 6.0,
+                    },
+                ];
+            }
+        }
     }
 
     pub fn set_iteration(&mut self, iteration: usize) {
         self.iteration = iteration;
-    }
-
-    pub fn set_solution_threshold(&mut self, solution_threshold: f64) {
-        self.solution_threshold = solution_threshold;
     }
 
     // pub fn calculate_s_matrix(&self, om: f64, k: f64) -> ScatteringMatrix {
@@ -54,9 +101,7 @@ impl MultiLayer {
             BackEnd::Scattering => {
                 calculate_s_matrix(&self.layers, om, k, polarization).determinant()
             }
-            BackEnd::Transfer => {
-                panic!("Transfer matrix is not implemented yet")
-            }
+            BackEnd::Transfer => 1.0 / calculate_t_matrix(&self.layers, om, k, polarization).t22,
         }
     }
 
@@ -70,6 +115,7 @@ impl MultiLayer {
         k_min: f64,
         k_max: f64,
         step: f64,
+        treshold: f64,
         polarization: Polarization,
     ) -> Vec<f64> {
         let kv: Vec<f64> = iter_num_tools::arange(k_min..k_max, step).collect();
@@ -84,16 +130,13 @@ impl MultiLayer {
             .collect();
 
         let mut peak_finder = PeakFinder::new(&det);
-        let peaks = peak_finder
-            .with_min_height(self.solution_threshold)
-            .with_min_difference(1e-3)
-            .find_peaks();
+        let peaks = peak_finder.with_min_height(treshold).find_peaks();
 
         let ksolutions = {
             peaks
                 .into_iter()
-                .map(|p| kv.get(p.middle_position()))
-                .flatten()
+                .map(|p| kv.get(p.middle_position()).unwrap_or_else(|| &0.0))
+                // .flatten()
                 .collect::<Vec<_>>()
         };
 
@@ -109,25 +152,26 @@ impl MultiLayer {
 
         let mut ksolutions = Vec::new();
 
-        for step in [1e-3, 1e-6, 1e-9, 1e-12].into_iter().take(self.iteration) {
+        for step in self.settings.clone().into_iter().take(self.iteration) {
             ksolutions.clear();
             for (_kmin, _kmax) in solution_backets {
-                let _solutions = self.solve_step(om, _kmin, _kmax, step, polarization);
+                let _solutions =
+                    self.solve_step(om, _kmin, _kmax, step.step, step.threshold, polarization);
                 ksolutions.extend(_solutions);
             }
             solution_backets = ksolutions
                 .iter()
-                .map(|k| (k - step, k + step))
+                .map(|k| (k - step.step, k + step.step))
                 .collect::<Vec<_>>();
+        }
+
+        for _k in ksolutions.iter() {
+            println!("k = {}", _k);
         }
 
         let mut n_solutions = ksolutions.into_iter().map(|k| k / om).collect::<Vec<_>>();
 
         n_solutions.sort_by(|a, b| b.partial_cmp(a).unwrap_or_else(|| Ordering::Equal));
-
-        for p in n_solutions.iter() {
-            println!("{:?}", p);
-        }
         n_solutions
     }
 }
@@ -154,6 +198,7 @@ pub fn find_minmax_n(layers: &Vec<Layer>) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::f64::consts::PI;
 
     fn approx_equal(a: f64, b: f64, epsilon: f64) -> bool {
         (a - b).abs() < epsilon
@@ -230,6 +275,50 @@ mod tests {
         let mut multi_layer = create_coupled_slab_multilayer();
         let om = 2.0 * PI / 1.55;
         multi_layer.set_backend(BackEnd::Scattering);
+
+        let neff = multi_layer.solve(om, Polarization::TM);
+        let expected_neff = vec![1.657019473, 1.657015474, 1.035192425, 1.019866805];
+        assert_vec_approx_equal(&neff, &expected_neff, 1e-9);
+    }
+
+    #[test]
+    fn test_transfer_slab_te() {
+        let mut multi_layer = create_slab_multilayer();
+        let om = 2.0 * PI / 1.55;
+        multi_layer.set_backend(BackEnd::Transfer);
+
+        let neff = multi_layer.solve(om, Polarization::TE);
+        let expected_neff = vec![1.804297363, 1.191174978];
+        assert_vec_approx_equal(&neff, &expected_neff, 1e-9);
+    }
+
+    #[test]
+    fn test_transfer_slab_tm() {
+        let mut multi_layer = create_slab_multilayer();
+        let om = 2.0 * PI / 1.55;
+        multi_layer.set_backend(BackEnd::Transfer);
+
+        let neff = multi_layer.solve(om, Polarization::TM);
+        let expected_neff = vec![1.657017474, 1.028990635];
+        assert_vec_approx_equal(&neff, &expected_neff, 1e-9);
+    }
+
+    #[test]
+    fn test_transfer_coupled_slab_te() {
+        let mut multi_layer = create_coupled_slab_multilayer();
+        let om = 2.0 * PI / 1.55;
+        multi_layer.set_backend(BackEnd::Transfer);
+
+        let neff = multi_layer.solve(om, Polarization::TE);
+        let expected_neff = vec![1.804297929, 1.804296798, 1.192052932, 1.190270579];
+        assert_vec_approx_equal(&neff, &expected_neff, 1e-9);
+    }
+
+    #[test]
+    fn test_transfer_coupled_slab_tm() {
+        let mut multi_layer = create_coupled_slab_multilayer();
+        let om = 2.0 * PI / 1.55;
+        multi_layer.set_backend(BackEnd::Transfer);
 
         let neff = multi_layer.solve(om, Polarization::TM);
         let expected_neff = vec![1.657019473, 1.657015474, 1.035192425, 1.019866805];
