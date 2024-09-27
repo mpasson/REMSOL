@@ -45,5 +45,26 @@ def test_coupled_slab():
 
 
 if __name__ == "__main__":
-    print(slab.neff(om, pol.TE, 0))
+    from time import time
+
+    class Timer:
+        def __init__(self):
+            self.start = None
+            self.end = None
+
+        @property
+        def elapsed(self):
+            return self.end - self.start
+
+        def __enter__(self):
+            self.start = time()
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            self.end = time()
+
+    with Timer() as t:
+        print(coupled_slab.neff(om, pol.TE, 0))
+    print(t.elapsed)
+
     print(slab.neff(om, pol.TM, 0))

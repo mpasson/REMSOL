@@ -1,9 +1,29 @@
+from time import time
+
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.signal import find_peaks
 
 # import warnings
 
 # warnings.filterwarnings('error')
+
+
+class Timer:
+    def __init__(self):
+        self.start = None
+        self.end = None
+
+    @property
+    def elapsed(self):
+        return self.end - self.start
+
+    def __enter__(self):
+        self.start = time()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.end = time()
 
 
 def compose(S, M):
@@ -192,6 +212,51 @@ def func_determinat(om, d_list, n_list, pol="TE"):
     return inner
 
 
+class MultiLayer:
+    def __init__(self, n_list, d_list) -> None:
+        self.n_list = n_list
+        self.d_list = d_list
+
+    def _transfer_char(
+        self, k: float, om: float, d_list: list[float], n_list: list[float], pol: str
+    ):
+        return 1.0 / generalT(k, om, d_list, n_list, pol)[1, 1]
+
+    def _solve_step(
+        self,
+        kmin: float,
+        kmax: float,
+        step: float,
+        treshold: float,
+        om: float,
+        pol: str,
+    ) -> list[tuple[float, float]]:
+        kv = np.arange(kmin, kmax, step)
+        caracteristic = [
+            np.log10(np.abs(self._transfer_char(_, om, self.d_list, self.n_list, pol)))
+            for _ in kv
+        ]
+        peaks, extra = find_peaks(caracteristic, treshold)
+        ksol = [kv[_] for _ in peaks]
+        ktuple = [(_ - step, _ + step) for _ in ksol]
+        return ktuple
+
+    def solve(self, om, pol):
+        brackets = [
+            (min(self.n_list) * om + 1e-9, max(self.n_list) * om - 1e-9),
+        ]
+
+        for step, treshold in [(1e-3, 0.0), (1e-6, 0.0), (1e-9, 0.0)]:
+            new_brackets = []
+            for kmin, kmax in brackets:
+                new_brackets += self._solve_step(kmin, kmax, step, treshold, om, pol)
+            brackets = new_brackets
+
+        ksol = [0.5 * (_[0] + _[1]) for _ in brackets]
+        nsol = [_ / om for _ in ksol]
+        return nsol
+
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import numpy as np
@@ -206,41 +271,50 @@ if __name__ == "__main__":
         1.143946222685255,
     ]
 
-    d_list = [1.0, 0.6, 1.0]
-    n_list = [1.0, 2.0, 1.0]
+    # d_list = [1.0, 0.6, 1.0]
+    # n_list = [1.0, 2.0, 1.0]
+    d_list = [1.0, 0.6, 2.0, 0.6, 1.0]
+    n_list = [1.0, 2.0, 1.0, 2.0, 1.0]
+
     om = 2.0 * np.pi / 1.55
 
-    k_solutions = [_ * om for _ in n_solutions]
+    multi = MultiLayer(n_list, d_list)
 
-    det = func_determinat(om, d_list, n_list, "TM")
-    kl = np.arange(om, 2.0 * om, 1e-3)
-    Ss = [det(k) for k in kl]
+    with Timer() as t:
+        print(multi.solve(om, "TE"))
+    print(t.elapsed)
 
-    # plt.plot(kl, [np.log10(np.abs(ln.det(_))) for _ in Ss], label="det")
-    plt.plot(kl, [np.log10(np.abs(1.0 / _[0, 0])) for _ in Ss], label="0,0")
-    plt.plot(kl, [np.log10(np.abs(1.0 / _[0, 1])) for _ in Ss], label="0,1")
-    plt.plot(kl, [np.log10(np.abs(1.0 / _[1, 0])) for _ in Ss], label="1,0")
-    plt.plot(kl, [np.log10(np.abs(1.0 / _[1, 1])) for _ in Ss], label="1,1")
-    plt.legend()
-    plt.show()
+    # k_solutions = [_ * om for _ in n_solutions]
 
-    S = general(k_solutions[2], om, d_list, n_list, "TM")
-    print("S matrix")
-    print(S)
-    print(np.abs(S[0, 0] * S[1, 1] - S[0, 1] * S[1, 0]))
+    # det = func_determinat(om, d_list, n_list, "TM")
+    # kl = np.arange(om, 2.0 * om, 1e-3)
+    # Ss = [det(k) for k in kl]
 
-    print("Inverse S matrix")
-    I = ln.inv(S)
-    print(I)
-    eig, ev = ln.eig(I)
+    # # plt.plot(kl, [np.log10(np.abs(ln.det(_))) for _ in Ss], label="det")
+    # plt.plot(kl, [np.log10(np.abs(1.0 / _[0, 0])) for _ in Ss], label="0,0")
+    # plt.plot(kl, [np.log10(np.abs(1.0 / _[0, 1])) for _ in Ss], label="0,1")
+    # plt.plot(kl, [np.log10(np.abs(1.0 / _[1, 0])) for _ in Ss], label="1,0")
+    # plt.plot(kl, [np.log10(np.abs(1.0 / _[1, 1])) for _ in Ss], label="1,1")
+    # plt.legend()
+    # plt.show()
 
-    print("eigenvalues and eigenvectors")
-    print(eig)
-    print(ev)
+    # S = general(k_solutions[2], om, d_list, n_list, "TM")
+    # print("S matrix")
+    # print(S)
+    # print(np.abs(S[0, 0] * S[1, 1] - S[0, 1] * S[1, 0]))
 
-    print("Singular value decomposition")
+    # print("Inverse S matrix")
+    # I = ln.inv(S)
+    # print(I)
+    # eig, ev = ln.eig(I)
 
-    U, s, V = ln.svd(I)
-    print(U)
-    print(s)
-    print(V)
+    # print("eigenvalues and eigenvectors")
+    # print(eig)
+    # print(ev)
+
+    # print("Singular value decomposition")
+
+    # U, s, V = ln.svd(I)
+    # print(U)
+    # print(s)
+    # print(V)
