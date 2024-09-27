@@ -1,5 +1,5 @@
 [package]
-name = "scattering_matrix"
+name = "multilayer_solver"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,7 +8,14 @@ find_peaks = "0.1.5"
 num-complex = "0.4.6"
 itertools = "0.13.0"
 iter_num_tools = "0.7.1"
+pyo3 = "0.22.0"
 
 [lib]
-name = "multilayer_solver"       # The name of the target.
+name = "multilayer_solver"
+crate-type = ["cdylib", "rlib"]
+# The name of the target.
 # path = "src/" # The source file of the target.
+
+[features]
+extension-module = ["pyo3/extension-module"]
+default = ["extension-module"]

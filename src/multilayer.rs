@@ -1,8 +1,8 @@
 extern crate find_peaks;
 extern crate itertools;
 
+use pyo3::prelude::*;
 use std::cmp::Ordering;
-use std::iter::zip;
 
 use crate::enums::BackEnd;
 use crate::enums::Polarization;
@@ -19,6 +19,7 @@ pub struct StepSettings {
     pub threshold: f64,
 }
 
+#[pyclass]
 pub struct MultiLayer {
     layers: Vec<Layer>,
     iteration: usize,
@@ -26,7 +27,9 @@ pub struct MultiLayer {
     settings: Vec<StepSettings>,
 }
 
+#[pymethods]
 impl MultiLayer {
+    #[new]
     pub fn new(layers: Vec<Layer>) -> MultiLayer {
         let mut multilayer = MultiLayer {
             layers: layers,
@@ -38,6 +41,20 @@ impl MultiLayer {
         multilayer
     }
 
+    #[pyo3(name = "neff")]
+    pub fn python_neff(
+        &self,
+        omega: f64,
+        polarization: Option<Polarization>,
+        mode: Option<u8>,
+    ) -> f64 {
+        let polarization = polarization.unwrap_or(Polarization::TE);
+        let mode = mode.unwrap_or(0);
+        self.neff(omega, polarization, mode)
+    }
+}
+
+impl MultiLayer {
     pub fn set_backend(&mut self, backend: BackEnd) {
         self.backend = backend;
         match backend {
@@ -165,14 +182,16 @@ impl MultiLayer {
                 .collect::<Vec<_>>();
         }
 
-        for _k in ksolutions.iter() {
-            println!("k = {}", _k);
-        }
-
         let mut n_solutions = ksolutions.into_iter().map(|k| k / om).collect::<Vec<_>>();
 
         n_solutions.sort_by(|a, b| b.partial_cmp(a).unwrap_or_else(|| Ordering::Equal));
         n_solutions
+    }
+
+    pub fn neff(&self, om: f64, polarization: Polarization, mode: u8) -> f64 {
+        let n_solutions = self.solve(om, polarization);
+        let n_eff = n_solutions.get(mode as usize).unwrap_or_else(|| &0.0);
+        *n_eff
     }
 }
 
