@@ -11,5 +11,16 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dynamic = ["version"]
+dependencies = []
+
+
+[project.optional-dependencies]
+'dev' = [
+    'uv',
+    'maturin',
+    'pytest',
+]
+
+
 [tool.maturin]
 features = ["pyo3/extension-module"]

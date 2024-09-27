@@ -14,3 +14,6 @@ REMS (Rust-based Electromagnetic Multi-layer Solver) is a software package for f
 - [ ] Field calculation using transfer matrix method
 - [ ] Field calculation using scattering matrix method
 - [ ] Python bindings
+  - [x] bare-minimum classes and methods (Polarization, Layer, MultiLayer)
+  - [ ] backends methods
+  - [ ] field calculation methods
