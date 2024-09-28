@@ -2,23 +2,51 @@ extern crate cumsum;
 extern crate find_peaks;
 extern crate itertools;
 
+use itertools::izip;
+use num_complex::Complex64;
+use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
+use pyo3::types::PyComplex;
 use std::cmp::Ordering;
 use std::iter::zip;
 
 use crate::enums::BackEnd;
 use crate::enums::Polarization;
-use crate::layer::Layer;
+use crate::layer::{Layer, LayerCoefficientVector};
 use crate::scattering_matrix::calculate_s_matrix;
-use crate::transfer_matrix::calculate_t_matrix;
+use crate::transfer_matrix::{calculate_t_matrix, get_propagation_coefficients_transfer};
 use cumsum::cumsum;
 use find_peaks::PeakFinder;
 use num_complex::Complex;
+
+#[derive(Debug, Clone)]
+struct ComplexWrapper {
+    complex: Complex<f64>,
+}
+
+impl IntoPy<PyObject> for ComplexWrapper {
+    fn into_py(self, py: Python<'_>) -> Py<PyAny> {
+        PyComplex::from_doubles_bound(py, self.complex.re, self.complex.im).to_object(py)
+    }
+}
 
 pub struct GridData {
     pub xplot: Vec<f64>,
     pub xstarts: Vec<f64>,
     pub ixstarts: Vec<usize>,
+}
+
+pub struct FieldData {
+    pub x: Vec<f64>,
+    pub field: Vec<Complex<f64>>,
+}
+
+#[pyclass]
+pub struct PythonFieldData {
+    #[pyo3(get)]
+    pub x: Vec<f64>,
+    #[pyo3(get)]
+    pub field: Vec<ComplexWrapper>,
 }
 
 #[pyclass]
@@ -27,6 +55,28 @@ pub struct IndexData {
     pub x: Vec<f64>,
     #[pyo3(get)]
     pub n: Vec<f64>,
+}
+
+fn get_field_slice(
+    a: Complex<f64>,
+    b: Complex<f64>,
+    om: f64,
+    k: f64,
+    n: f64,
+    x: Vec<f64>,
+) -> Vec<Complex<f64>> {
+    let om = num_complex::Complex::new(om, 0.0);
+    let k = num_complex::Complex::new(k, 0.0);
+    let n = num_complex::Complex::new(n, 0.0);
+    let beta = ((om * n).powi(2) - k.powi(2)).sqrt();
+    x.iter()
+        .map(|x| {
+            let z = num_complex::Complex::new(0.0, *x);
+            let phase_p = z * beta;
+            let phase_n = -z * beta;
+            a * phase_p.exp() + b * phase_n.exp()
+        })
+        .collect()
 }
 
 #[pyclass]
@@ -60,11 +110,14 @@ impl MultiLayer {
         &self,
         omega: f64,
         polarization: Option<Polarization>,
-        mode: Option<u8>,
-    ) -> f64 {
+        mode: Option<usize>,
+    ) -> PyResult<f64> {
         let polarization = polarization.unwrap_or(Polarization::TE);
         let mode = mode.unwrap_or(0);
-        self.neff(omega, polarization, mode)
+        match self.neff(omega, polarization, mode) {
+            Ok(neff) => Ok(neff),
+            Err(err) => Err(PyException::new_err(err)),
+        }
     }
 
     #[pyo3(name = "index")]
@@ -74,6 +127,29 @@ impl MultiLayer {
         IndexData {
             x: grid_data.xplot,
             n: index,
+        }
+    }
+
+    #[pyo3(name = "field")]
+    #[pyo3(signature = (omega, polarization=None, mode=None))]
+    pub fn python_field(
+        &self,
+        omega: f64,
+        polarization: Option<Polarization>,
+        mode: Option<usize>,
+    ) -> PyResult<PythonFieldData> {
+        let polarization = polarization.unwrap_or(Polarization::TE);
+        let mode = mode.unwrap_or(0);
+        match self.field(omega, polarization, mode) {
+            Ok(field_data) => Ok(PythonFieldData {
+                x: field_data.x,
+                field: field_data
+                    .field
+                    .iter()
+                    .map(|c| ComplexWrapper { complex: *c })
+                    .collect(),
+            }),
+            Err(err) => Err(PyException::new_err(err)),
         }
     }
 }
@@ -179,10 +255,35 @@ impl MultiLayer {
         n_solutions
     }
 
-    pub fn neff(&self, om: f64, polarization: Polarization, mode: u8) -> f64 {
+    pub fn neff(&self, om: f64, polarization: Polarization, mode: usize) -> Result<f64, String> {
         let n_solutions = self.solve(om, polarization);
-        let n_eff = n_solutions.get(mode as usize).unwrap_or_else(|| &0.0);
-        *n_eff
+        match n_solutions.get(mode) {
+            Some(n) => Ok(*n),
+            None => Err(format!(
+                "Mode {} not found. Only {} modes (0->{}) available.",
+                mode,
+                n_solutions.len(),
+                n_solutions.len() - 1
+            )),
+        }
+    }
+
+    pub fn get_propagation_coefficients(
+        &self,
+        om: f64,
+        k: f64,
+        polarization: Polarization,
+        a: Complex<f64>,
+        b: Complex<f64>,
+    ) -> Vec<LayerCoefficientVector> {
+        match self.backend {
+            BackEnd::Transfer => {
+                get_propagation_coefficients_transfer(&self.layers, om, k, polarization, a, b)
+            }
+            BackEnd::Scattering => {
+                panic!("Not implemented yet")
+            }
+        }
     }
 
     pub fn get_grid_data(&self) -> GridData {
@@ -209,6 +310,85 @@ impl MultiLayer {
             xstarts: grid_starts,
             ixstarts: grid_istarts,
         }
+    }
+
+    pub fn field(
+        &self,
+        om: f64,
+        polarization: Polarization,
+        mode: usize,
+    ) -> Result<FieldData, String> {
+        let neff = match self.neff(om, polarization, mode) {
+            Ok(n) => n,
+            Err(e) => return Err(e),
+        };
+
+        let coefficient_vector = self.get_propagation_coefficients(
+            om,
+            om * neff,
+            polarization,
+            Complex::new(0.0, 0.0),
+            Complex::new(1.0, 0.0),
+        );
+        let grid_data = self.get_grid_data();
+        let x = grid_data.xplot.clone();
+
+        let mut field_vectors: Vec<Complex64> = Vec::new();
+        for (i, (istart, iend)) in zip(
+            grid_data.ixstarts.clone(),
+            grid_data.ixstarts.clone().iter().skip(1),
+        )
+        .enumerate()
+        {
+            let xstart = grid_data.xstarts[i];
+            let coefficients = &coefficient_vector[i];
+            let layer = &self.layers[i];
+            let xslice: Vec<f64> = x[istart..*iend]
+                .iter()
+                .map(|x| x - xstart)
+                .collect::<Vec<_>>();
+            field_vectors.extend(get_field_slice(
+                coefficients.a,
+                coefficients.b,
+                om,
+                om * neff,
+                layer.n,
+                xslice,
+            ))
+        }
+
+        // let mut iterable = izip!(
+        //     &self.layers,
+        //     &grid_data.ixstarts,
+        //     &grid_data.xstarts,
+        //     &coefficient_vector
+        // )
+        // .peekable();
+        // let mut field_vectors: Vec<Complex64> = Vec::new();
+        // loop {
+        //     let (layer, istart, xstart, coefficients) = iterable.next().unwrap();
+        //     let (next_layer, iend, xend, next_coefficients) = match iterable.peek() {
+        //         Some(x) => x,
+        //         None => break,
+        //     };
+        //     let xslice: Vec<f64> = x[*istart..**iend]
+        //         .iter()
+        //         .map(|x| x - xstart)
+        //         .collect::<Vec<_>>();
+        //     field_vectors.extend(get_field_slice(
+        //         coefficients.a,
+        //         coefficients.b,
+        //         om,
+        //         om * neff,
+        //         layer.n,
+        //         xslice,
+        //     ))
+        // }
+
+        Ok(FieldData {
+            x: grid_data.xplot.clone(),
+            field: field_vectors,
+        })
     }
 
     pub fn get_index(&self, grid_data: &GridData) -> Vec<f64> {
