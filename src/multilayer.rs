@@ -3,14 +3,12 @@ extern crate itertools;
 
 use pyo3::prelude::*;
 use std::cmp::Ordering;
-use std::collections::HashMap;
 
 use crate::enums::BackEnd;
 use crate::enums::Polarization;
 use crate::layer::Layer;
 use crate::scattering_matrix::calculate_s_matrix;
 use crate::transfer_matrix::calculate_t_matrix;
-// use crate::scattering_matrix::ScatteringMatrix;
 use find_peaks::PeakFinder;
 use num_complex::Complex;
 
@@ -27,7 +25,7 @@ impl MultiLayer {
     #[new]
     pub fn new(layers: Vec<Layer>) -> MultiLayer {
         let mut multilayer = MultiLayer {
-            layers: layers,
+            layers,
             iteration: 8,
             backend: BackEnd::Transfer,
             required_accuracy: 10,
@@ -37,6 +35,7 @@ impl MultiLayer {
     }
 
     #[pyo3(name = "neff")]
+    #[pyo3(signature = (omega, polarization=None, mode=None))]
     pub fn python_neff(
         &self,
         omega: f64,
