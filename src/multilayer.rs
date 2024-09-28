@@ -3,6 +3,7 @@ extern crate itertools;
 
 use pyo3::prelude::*;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
 use crate::enums::BackEnd;
 use crate::enums::Polarization;
@@ -13,18 +14,12 @@ use crate::transfer_matrix::calculate_t_matrix;
 use find_peaks::PeakFinder;
 use num_complex::Complex;
 
-#[derive(Clone)]
-pub struct StepSettings {
-    pub step: f64,
-    pub threshold: f64,
-}
-
 #[pyclass]
 pub struct MultiLayer {
     layers: Vec<Layer>,
     iteration: usize,
     backend: BackEnd,
-    settings: Vec<StepSettings>,
+    required_accuracy: i32,
 }
 
 #[pymethods]
@@ -33,9 +28,9 @@ impl MultiLayer {
     pub fn new(layers: Vec<Layer>) -> MultiLayer {
         let mut multilayer = MultiLayer {
             layers: layers,
-            iteration: 3,
+            iteration: 8,
             backend: BackEnd::Transfer,
-            settings: vec![],
+            required_accuracy: 10,
         };
         multilayer.set_backend(BackEnd::Transfer);
         multilayer
@@ -57,61 +52,27 @@ impl MultiLayer {
 impl MultiLayer {
     pub fn set_backend(&mut self, backend: BackEnd) {
         self.backend = backend;
-        match backend {
-            BackEnd::Scattering => {
-                self.settings = vec![
-                    StepSettings {
-                        step: 1e-3,
-                        threshold: 2.0,
-                    },
-                    StepSettings {
-                        step: 1e-6,
-                        threshold: 5.0,
-                    },
-                    StepSettings {
-                        step: 1e-9,
-                        threshold: 7.0,
-                    },
-                    StepSettings {
-                        step: 1e-12,
-                        threshold: 9.0,
-                    },
-                ];
-            }
-            BackEnd::Transfer => {
-                self.settings = vec![
-                    StepSettings {
-                        step: 1e-3,
-                        threshold: 0.0,
-                    },
-                    StepSettings {
-                        step: 1e-6,
-                        threshold: 3.0,
-                    },
-                    StepSettings {
-                        step: 1e-9,
-                        threshold: 6.0,
-                    },
-                    StepSettings {
-                        step: 1e-12,
-                        threshold: 6.0,
-                    },
-                ];
-            }
-        }
     }
 
     pub fn set_iteration(&mut self, iteration: usize) {
         self.iteration = iteration;
     }
 
-    // pub fn calculate_s_matrix(&self, om: f64, k: f64) -> ScatteringMatrix {
-    //     calculate_s_matrix(&self.layers, om, k)
-    // }
-
-    // pub fn calculate_structure_determinant(&self, om: f64, k: f64) -> Complex<f64> {
-    //     self.calculate_s_matrix(om, k).determinant()
-    // }
+    fn get_threshold(accuracy: i32) -> f64 {
+        if accuracy < 3 {
+            return -2.0;
+        }
+        if accuracy < 6 {
+            return 0.0;
+        }
+        if accuracy < 9 {
+            return 3.0;
+        }
+        if accuracy < 12 {
+            return 6.0;
+        }
+        return 9.0;
+    }
 
     fn characteristic_function(&self, om: f64, k: f64, polarization: Polarization) -> Complex<f64> {
         match self.backend {
@@ -169,16 +130,17 @@ impl MultiLayer {
 
         let mut ksolutions = Vec::new();
 
-        for step in self.settings.clone().into_iter().take(self.iteration) {
+        for accuracy in 2..self.required_accuracy {
+            let step = 10.0_f64.powi(-accuracy);
+            let threshold = Self::get_threshold(accuracy);
             ksolutions.clear();
             for (_kmin, _kmax) in solution_backets {
-                let _solutions =
-                    self.solve_step(om, _kmin, _kmax, step.step, step.threshold, polarization);
+                let _solutions = self.solve_step(om, _kmin, _kmax, step, threshold, polarization);
                 ksolutions.extend(_solutions);
             }
             solution_backets = ksolutions
                 .iter()
-                .map(|k| (k - step.step, k + step.step))
+                .map(|k| (k - step, k + step))
                 .collect::<Vec<_>>();
         }
 
@@ -208,11 +170,6 @@ pub fn find_minmax_n(layers: &Vec<Layer>) -> (f64, f64) {
     }
     (min_n, max_n)
 }
-
-// pub fn calculate_structure_determinant(layers: &Vec<Layer>, om: f64, k: f64) -> Complex<f64> {
-//     let s_matrix = calculate_s_matrix(layers, om, k);
-//     s_matrix.determinant()
-// }
 
 #[cfg(test)]
 mod tests {

@@ -213,6 +213,17 @@ def func_determinat(om, d_list, n_list, pol="TE"):
 
 
 class MultiLayer:
+    step_settings = [
+        (1e-2, 0.0),
+        (1e-3, 0.0),
+        (1e-4, 0.0),
+        (1e-5, 0.0),
+        (1e-6, 3.0),
+        (1e-7, 3.0),
+        (1e-8, 3.0),
+        (1e-9, 6.0),
+    ]
+
     def __init__(self, n_list, d_list) -> None:
         self.n_list = n_list
         self.d_list = d_list
@@ -246,7 +257,7 @@ class MultiLayer:
             (min(self.n_list) * om + 1e-9, max(self.n_list) * om - 1e-9),
         ]
 
-        for step, treshold in [(1e-3, 0.0), (1e-6, 0.0), (1e-9, 0.0)]:
+        for step, treshold in self.step_settings:
             new_brackets = []
             for kmin, kmax in brackets:
                 new_brackets += self._solve_step(kmin, kmax, step, treshold, om, pol)
@@ -260,7 +271,6 @@ class MultiLayer:
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import numpy as np
-    import scipy.linalg as ln
 
     n_solutions = [
         1.807131772097367,
@@ -278,25 +288,25 @@ if __name__ == "__main__":
 
     om = 2.0 * np.pi / 1.55
 
-    multi = MultiLayer(n_list, d_list)
+    # multi = MultiLayer(n_list, d_list)
 
-    with Timer() as t:
-        print(multi.solve(om, "TE"))
-    print(t.elapsed)
+    # with Timer() as t:
+    #     print(multi.solve(om, "TE"))
+    # print(t.elapsed)
 
     # k_solutions = [_ * om for _ in n_solutions]
 
-    # det = func_determinat(om, d_list, n_list, "TM")
-    # kl = np.arange(om, 2.0 * om, 1e-3)
-    # Ss = [det(k) for k in kl]
+    det = func_determinat(om, d_list, n_list, "TM")
+    kl = np.arange(om, 2.0 * om, 1e-2)
+    Ss = [det(k) for k in kl]
 
-    # # plt.plot(kl, [np.log10(np.abs(ln.det(_))) for _ in Ss], label="det")
-    # plt.plot(kl, [np.log10(np.abs(1.0 / _[0, 0])) for _ in Ss], label="0,0")
-    # plt.plot(kl, [np.log10(np.abs(1.0 / _[0, 1])) for _ in Ss], label="0,1")
-    # plt.plot(kl, [np.log10(np.abs(1.0 / _[1, 0])) for _ in Ss], label="1,0")
-    # plt.plot(kl, [np.log10(np.abs(1.0 / _[1, 1])) for _ in Ss], label="1,1")
-    # plt.legend()
-    # plt.show()
+    # plt.plot(kl, [np.log10(np.abs(ln.det(_))) for _ in Ss], label="det")
+    plt.plot(kl, [np.log10(np.abs(1.0 / _[0, 0])) for _ in Ss], label="0,0")
+    plt.plot(kl, [np.log10(np.abs(1.0 / _[0, 1])) for _ in Ss], label="0,1")
+    plt.plot(kl, [np.log10(np.abs(1.0 / _[1, 0])) for _ in Ss], label="1,0")
+    plt.plot(kl, [np.log10(np.abs(1.0 / _[1, 1])) for _ in Ss], label="1,1")
+    plt.legend()
+    plt.show()
 
     # S = general(k_solutions[2], om, d_list, n_list, "TM")
     # print("S matrix")
