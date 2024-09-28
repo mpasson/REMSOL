@@ -7,6 +7,12 @@ use itertools::izip;
 use num_complex::Complex;
 
 #[derive(Debug)]
+pub struct LayerCoefficientVector {
+    pub a: Complex<f64>,
+    pub b: Complex<f64>,
+}
+
+#[derive(Debug)]
 pub struct TransferMatrix {
     t11: Complex<f64>,
     t12: Complex<f64>,
@@ -90,6 +96,13 @@ impl TransferMatrix {
         match polarizaton {
             Polarization::TE => TransferMatrix::matrix_interface_te(n1, n2, om, k),
             Polarization::TM => TransferMatrix::matrix_interface_tm(n1, n2, om, k),
+        }
+    }
+
+    pub fn multiply(self, coefficient_vector: &LayerCoefficientVector) -> LayerCoefficientVector {
+        LayerCoefficientVector {
+            a: self.t11 * coefficient_vector.a + self.t12 * coefficient_vector.b,
+            b: self.t21 * coefficient_vector.a + self.t22 * coefficient_vector.b,
         }
     }
 }

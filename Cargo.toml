@@ -9,6 +9,7 @@ num-complex = "0.4.6"
 itertools = "0.13.0"
 iter_num_tools = "0.7.1"
 pyo3 = "0.22.0"
+cumsum = "1.0.0"
 
 [lib]
 name = "multilayer_solver"

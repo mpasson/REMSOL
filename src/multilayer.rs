@@ -1,16 +1,33 @@
+extern crate cumsum;
 extern crate find_peaks;
 extern crate itertools;
 
 use pyo3::prelude::*;
 use std::cmp::Ordering;
+use std::iter::zip;
 
 use crate::enums::BackEnd;
 use crate::enums::Polarization;
 use crate::layer::Layer;
 use crate::scattering_matrix::calculate_s_matrix;
 use crate::transfer_matrix::calculate_t_matrix;
+use cumsum::cumsum;
 use find_peaks::PeakFinder;
 use num_complex::Complex;
+
+pub struct GridData {
+    pub xplot: Vec<f64>,
+    pub xstarts: Vec<f64>,
+    pub ixstarts: Vec<usize>,
+}
+
+#[pyclass]
+pub struct IndexData {
+    #[pyo3(get)]
+    pub x: Vec<f64>,
+    #[pyo3(get)]
+    pub n: Vec<f64>,
+}
 
 #[pyclass]
 pub struct MultiLayer {
@@ -18,6 +35,8 @@ pub struct MultiLayer {
     iteration: usize,
     backend: BackEnd,
     required_accuracy: i32,
+    #[pyo3(get, set)]
+    pub plot_step: f64,
 }
 
 #[pymethods]
@@ -29,6 +48,7 @@ impl MultiLayer {
             iteration: 8,
             backend: BackEnd::Transfer,
             required_accuracy: 10,
+            plot_step: 1e-3,
         };
         multilayer.set_backend(BackEnd::Transfer);
         multilayer
@@ -45,6 +65,16 @@ impl MultiLayer {
         let polarization = polarization.unwrap_or(Polarization::TE);
         let mode = mode.unwrap_or(0);
         self.neff(omega, polarization, mode)
+    }
+
+    #[pyo3(name = "index")]
+    pub fn python_index(&self) -> IndexData {
+        let grid_data = self.get_grid_data();
+        let index = self.get_index(&grid_data);
+        IndexData {
+            x: grid_data.xplot,
+            n: index,
+        }
     }
 }
 
@@ -153,6 +183,43 @@ impl MultiLayer {
         let n_solutions = self.solve(om, polarization);
         let n_eff = n_solutions.get(mode as usize).unwrap_or_else(|| &0.0);
         *n_eff
+    }
+
+    pub fn get_grid_data(&self) -> GridData {
+        let xstart = -self.layers[0].d;
+        let xend = self.layers.iter().map(|l| l.d).sum::<f64>() + xstart;
+        let xgrid: Vec<f64> = iter_num_tools::arange(xstart..xend, self.plot_step).collect();
+        let grid_starts: Vec<f64> = self.layers.iter().map(|l| l.d).collect();
+        let grid_starts: Vec<f64> = [vec![0.0_f64], grid_starts].concat();
+        let grid_starts: Vec<f64> = cumsum(&grid_starts).iter().map(|x| x + xstart).collect();
+        let mut grid_istarts: Vec<usize> = vec![0];
+        let mut slice_iter = grid_starts.iter();
+        let _ = slice_iter.next();
+        let mut start = slice_iter.next().unwrap();
+        for (i, x) in xgrid.iter().enumerate() {
+            if x >= start {
+                grid_istarts.push(i);
+                start = slice_iter.next().unwrap();
+            }
+        }
+        grid_istarts.push(xgrid.len());
+
+        GridData {
+            xplot: xgrid,
+            xstarts: grid_starts,
+            ixstarts: grid_istarts,
+        }
+    }
+
+    pub fn get_index(&self, grid_data: &GridData) -> Vec<f64> {
+        let xgrid = grid_data.xplot.clone();
+        let mut n = vec![self.layers[0].n; xgrid.len()];
+        for (i, layer) in self.layers.iter().enumerate() {
+            let start = grid_data.ixstarts[i];
+            let end = grid_data.ixstarts[i + 1];
+            n[start..end].iter_mut().for_each(|x| *x = layer.n);
+        }
+        n
     }
 }
 
