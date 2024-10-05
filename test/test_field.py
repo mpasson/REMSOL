@@ -7,8 +7,8 @@ slab = msl.MultiLayer(
         msl.Layer(1, 1),
         msl.Layer(2, 0.6),
         msl.Layer(1, 1),
-        msl.Layer(2, 0.6),
-        msl.Layer(1, 1),
+        # msl.Layer(2, 0.6),
+        # msl.Layer(1, 1),
     ]
 )
 
@@ -17,6 +17,6 @@ np.pi
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    field = slab.field(2.0 * np.pi / 1.55, pol.TE, 3)
+    field = slab.field(2.0 * np.pi / 1.55, pol.TM, 0)
     plt.plot(field.x, np.real(field.field))
     plt.show()

@@ -408,7 +408,7 @@ pub fn find_minmax_n(layers: &Vec<Layer>) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::f64::consts::PI;
+    use std::{f64::consts::PI, fmt::Debug};
 
     trait ApproxEqual {
         fn approx_eq(&self, other: &Self, epsilon: f64) -> bool;
@@ -432,12 +432,16 @@ mod tests {
         }
     }
 
-    fn assert_vec_approx_equal(vec1: &[f64], vec2: &[f64], epsilon: f64) {
+    fn assert_vec_approx_equal<T>(vec1: &[T], vec2: &[T], epsilon: f64)
+    where
+        T: ApproxEqual,
+        T: Debug,
+    {
         assert_eq!(vec1.len(), vec2.len(), "Vectors have different lengths");
         for (i, (a, b)) in vec1.iter().zip(vec2.iter()).enumerate() {
             assert!(
                 a.approx_eq(b, epsilon),
-                "Values at index {} are not approximately equal: {} != {}",
+                "Values at index {} are not approximately equal: {:?} != {:?}",
                 i,
                 a,
                 b
@@ -551,5 +555,48 @@ mod tests {
         let neff = multi_layer.solve(om, Polarization::TM);
         let expected_neff = vec![1.657019473, 1.657015474, 1.035192425, 1.019866805];
         assert_vec_approx_equal(&neff, &expected_neff, 1e-9);
+    }
+
+    #[test]
+    fn test_transfer_field_slab() {
+        let mut multi_layer = create_slab_multilayer();
+        let om = 2.0 * PI / 1.55;
+        multi_layer.set_backend(BackEnd::Transfer);
+
+        let n = multi_layer.neff(om, Polarization::TE, 0).unwrap_or(0.0);
+        let ref_coefficients = vec![
+            LayerCoefficientVector::new(Complex::new(0.0, 0.0), Complex::new(1.0, 0.0)),
+            LayerCoefficientVector::new(
+                Complex::new(0.5, -0.870271563),
+                Complex::new(0.5, 0.870271563),
+            ),
+            LayerCoefficientVector::new(Complex::new(1.0, 0.0), Complex::new(0.0, 0.0)),
+        ];
+        let coefficients = multi_layer.get_propagation_coefficients(
+            om,
+            om * n,
+            Polarization::TE,
+            Complex::new(0.0, 0.0),
+            Complex::new(1.0, 0.0),
+        );
+        assert_vec_approx_equal(&coefficients, &ref_coefficients, 1e-9);
+
+        let n = multi_layer.neff(om, Polarization::TM, 0).unwrap_or(0.0);
+        let ref_coefficients = vec![
+            LayerCoefficientVector::new(Complex::new(0.0, 0.0), Complex::new(1.0, 0.0)),
+            LayerCoefficientVector::new(
+                Complex::new(0.5, 0.105955587),
+                Complex::new(0.5, -0.105955587),
+            ),
+            LayerCoefficientVector::new(Complex::new(-1.0, 0.0), Complex::new(0.0, 0.0)),
+        ];
+        let coefficients = multi_layer.get_propagation_coefficients(
+            om,
+            om * n,
+            Polarization::TM,
+            Complex::new(0.0, 0.0),
+            Complex::new(1.0, 0.0),
+        );
+        assert_vec_approx_equal(&coefficients, &ref_coefficients, 2e-9);
     }
 }
