@@ -314,6 +314,41 @@ impl MultiLayer {
         }
     }
 
+    fn get_field_componet(
+        &self,
+        coefficient_vector: &Vec<LayerCoefficientVector>,
+        grid_data: &GridData,
+        om: f64,
+        k: f64,
+    ) -> Vec<Complex<f64>> {
+        let x = grid_data.xplot.clone();
+
+        let mut field_vectors: Vec<Complex64> = Vec::new();
+        for (i, (istart, iend)) in zip(
+            grid_data.ixstarts.clone(),
+            grid_data.ixstarts.clone().iter().skip(1),
+        )
+        .enumerate()
+        {
+            let xstart = grid_data.xstarts[i];
+            let coefficients = coefficient_vector[i];
+            let layer = &self.layers[i];
+            let xslice: Vec<f64> = x[istart..*iend]
+                .iter()
+                .map(|x| x - xstart)
+                .collect::<Vec<_>>();
+            field_vectors.extend(get_field_slice(
+                coefficients.a,
+                coefficients.b,
+                om,
+                k,
+                layer.n,
+                xslice,
+            ));
+        }
+        field_vectors
+    }
+
     pub fn field(
         &self,
         om: f64,
@@ -335,61 +370,12 @@ impl MultiLayer {
         let grid_data = self.get_grid_data();
         let x = grid_data.xplot.clone();
 
-        let mut field_vectors: Vec<Complex64> = Vec::new();
-        for (i, (istart, iend)) in zip(
-            grid_data.ixstarts.clone(),
-            grid_data.ixstarts.clone().iter().skip(1),
-        )
-        .enumerate()
-        {
-            let xstart = grid_data.xstarts[i];
-            let coefficients = &coefficient_vector[i];
-            let layer = &self.layers[i];
-            let xslice: Vec<f64> = x[istart..*iend]
-                .iter()
-                .map(|x| x - xstart)
-                .collect::<Vec<_>>();
-            field_vectors.extend(get_field_slice(
-                coefficients.a,
-                coefficients.b,
-                om,
-                om * neff,
-                layer.n,
-                xslice,
-            ))
-        }
-
-        // let mut iterable = izip!(
-        //     &self.layers,
-        //     &grid_data.ixstarts,
-        //     &grid_data.xstarts,
-        //     &coefficient_vector
-        // )
-        // .peekable();
-        // let mut field_vectors: Vec<Complex64> = Vec::new();
-        // loop {
-        //     let (layer, istart, xstart, coefficients) = iterable.next().unwrap();
-        //     let (next_layer, iend, xend, next_coefficients) = match iterable.peek() {
-        //         Some(x) => x,
-        //         None => break,
-        //     };
-        //     let xslice: Vec<f64> = x[*istart..**iend]
-        //         .iter()
-        //         .map(|x| x - xstart)
-        //         .collect::<Vec<_>>();
-        //     field_vectors.extend(get_field_slice(
-        //         coefficients.a,
-        //         coefficients.b,
-        //         om,
-        //         om * neff,
-        //         layer.n,
-        //         xslice,
-        //     ))
-        // }
+        let main_component =
+            self.get_field_componet(&coefficient_vector, &grid_data, om, om * neff);
 
         Ok(FieldData {
             x: grid_data.xplot.clone(),
-            field: field_vectors,
+            field: main_component,
         })
     }
 
@@ -424,15 +410,33 @@ mod tests {
     use super::*;
     use std::f64::consts::PI;
 
-    fn approx_equal(a: f64, b: f64, epsilon: f64) -> bool {
-        (a - b).abs() < epsilon
+    trait ApproxEqual {
+        fn approx_eq(&self, other: &Self, epsilon: f64) -> bool;
+    }
+
+    impl ApproxEqual for f64 {
+        fn approx_eq(&self, other: &Self, epsilon: f64) -> bool {
+            (self - other).abs() < epsilon
+        }
+    }
+
+    impl ApproxEqual for Complex<f64> {
+        fn approx_eq(&self, other: &Self, epsilon: f64) -> bool {
+            self.re.approx_eq(&other.re, epsilon) && self.im.approx_eq(&other.im, epsilon)
+        }
+    }
+
+    impl ApproxEqual for LayerCoefficientVector {
+        fn approx_eq(&self, other: &Self, epsilon: f64) -> bool {
+            self.a.approx_eq(&other.a, epsilon) && self.b.approx_eq(&other.b, epsilon)
+        }
     }
 
     fn assert_vec_approx_equal(vec1: &[f64], vec2: &[f64], epsilon: f64) {
         assert_eq!(vec1.len(), vec2.len(), "Vectors have different lengths");
         for (i, (a, b)) in vec1.iter().zip(vec2.iter()).enumerate() {
             assert!(
-                approx_equal(*a, *b, epsilon),
+                a.approx_eq(b, epsilon),
                 "Values at index {} are not approximately equal: {} != {}",
                 i,
                 a,
