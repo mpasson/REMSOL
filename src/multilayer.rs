@@ -19,6 +19,11 @@ use cumsum::cumsum;
 use find_peaks::PeakFinder;
 use num_complex::Complex;
 
+const Z0: Complex<f64> = Complex {
+    re: 376.73031346177066,
+    im: 0.0,
+};
+
 #[derive(Debug, Clone)]
 struct ComplexWrapper {
     complex: Complex<f64>,
@@ -38,7 +43,12 @@ pub struct GridData {
 
 pub struct FieldData {
     pub x: Vec<f64>,
-    pub field: Vec<Complex<f64>>,
+    pub Ex: Vec<Complex<f64>>,
+    pub Ey: Vec<Complex<f64>>,
+    pub Ez: Vec<Complex<f64>>,
+    pub Hx: Vec<Complex<f64>>,
+    pub Hy: Vec<Complex<f64>>,
+    pub Hz: Vec<Complex<f64>>,
 }
 
 #[pyclass]
@@ -46,7 +56,17 @@ pub struct PythonFieldData {
     #[pyo3(get)]
     pub x: Vec<f64>,
     #[pyo3(get)]
-    pub field: Vec<ComplexWrapper>,
+    pub Ex: Vec<ComplexWrapper>,
+    #[pyo3(get)]
+    pub Ey: Vec<ComplexWrapper>,
+    #[pyo3(get)]
+    pub Ez: Vec<ComplexWrapper>,
+    #[pyo3(get)]
+    pub Hx: Vec<ComplexWrapper>,
+    #[pyo3(get)]
+    pub Hy: Vec<ComplexWrapper>,
+    #[pyo3(get)]
+    pub Hz: Vec<ComplexWrapper>,
 }
 
 #[pyclass]
@@ -143,8 +163,33 @@ impl MultiLayer {
         match self.field(omega, polarization, mode) {
             Ok(field_data) => Ok(PythonFieldData {
                 x: field_data.x,
-                field: field_data
-                    .field
+                Ex: field_data
+                    .Ex
+                    .iter()
+                    .map(|c| ComplexWrapper { complex: *c })
+                    .collect(),
+                Ey: field_data
+                    .Ey
+                    .iter()
+                    .map(|c| ComplexWrapper { complex: *c })
+                    .collect(),
+                Ez: field_data
+                    .Ez
+                    .iter()
+                    .map(|c| ComplexWrapper { complex: *c })
+                    .collect(),
+                Hx: field_data
+                    .Hx
+                    .iter()
+                    .map(|c| ComplexWrapper { complex: *c })
+                    .collect(),
+                Hy: field_data
+                    .Hy
+                    .iter()
+                    .map(|c| ComplexWrapper { complex: *c })
+                    .collect(),
+                Hz: field_data
+                    .Hz
                     .iter()
                     .map(|c| ComplexWrapper { complex: *c })
                     .collect(),
@@ -349,6 +394,53 @@ impl MultiLayer {
         field_vectors
     }
 
+    pub fn get_coefficient_all_components(
+        &self,
+        om: f64,
+        k: f64,
+        main_coefficients: Vec<LayerCoefficientVector>,
+    ) -> (
+        Vec<LayerCoefficientVector>,
+        Vec<LayerCoefficientVector>,
+        Vec<LayerCoefficientVector>,
+        Vec<LayerCoefficientVector>,
+        Vec<LayerCoefficientVector>,
+        Vec<LayerCoefficientVector>,
+    ) {
+        let main1 = main_coefficients;
+        let om = Complex::new(om, 0.0);
+        let k = Complex::new(k, 0.0);
+        let mut main2 = Vec::new();
+        let mut main3 = Vec::new();
+        let mut maink = Vec::new();
+        let mut mainb = Vec::new();
+        let zeros = vec![
+            LayerCoefficientVector::new(Complex::new(0.0, 0.0), Complex::new(0.0, 0.0));
+            self.layers.len()
+        ];
+        for (layer, coefficients) in zip(self.layers.iter(), main1.iter()) {
+            let kpar = ((layer.n * om).powi(2) - k.powi(2)).sqrt();
+            let n = Complex::new(layer.n, 0.0);
+            main2.push(LayerCoefficientVector::new(
+                -coefficients.a * k / kpar,
+                coefficients.b * k / kpar,
+            ));
+            main3.push(LayerCoefficientVector::new(
+                -coefficients.a * om * n.powi(2) / kpar,
+                coefficients.b * om * n.powi(2) / kpar,
+            ));
+            maink.push(LayerCoefficientVector::new(
+                coefficients.a * kpar / om,
+                -coefficients.b * kpar / om,
+            ));
+            mainb.push(LayerCoefficientVector::new(
+                -coefficients.a * k / om,
+                -coefficients.b * k / om,
+            ));
+        }
+        (main1, main2, main3, maink, mainb, zeros)
+    }
+
     pub fn field(
         &self,
         om: f64,
@@ -368,15 +460,46 @@ impl MultiLayer {
             Complex::new(1.0, 0.0),
         );
         let grid_data = self.get_grid_data();
-        let x = grid_data.xplot.clone();
 
         let main_component =
             self.get_field_componet(&coefficient_vector, &grid_data, om, om * neff);
+        let coefficients = self.get_coefficient_all_components(om, om * neff, coefficient_vector);
 
-        Ok(FieldData {
-            x: grid_data.xplot.clone(),
-            field: main_component,
-        })
+        let (main1, main2, main3, maink, mainb, zeros) = coefficients;
+        let field1 = self.get_field_componet(&main1, &grid_data, om, om * neff);
+        let fieldzeros = self.get_field_componet(&zeros, &grid_data, om, om * neff);
+
+        let field_data = match polarization {
+            Polarization::TE => {
+                let fieldk = self.get_field_componet(&maink, &grid_data, om, om * neff);
+                let fieldb = self.get_field_componet(&mainb, &grid_data, om, om * neff);
+
+                FieldData {
+                    x: grid_data.xplot.clone(),
+                    Ex: fieldzeros.clone(),
+                    Ey: field1,
+                    Ez: fieldzeros.clone(),
+                    Hx: fieldb.iter().map(|x| x / Z0).collect(),
+                    Hy: fieldzeros.clone(),
+                    Hz: fieldk.iter().map(|x| x / Z0).collect(),
+                }
+            }
+            Polarization::TM => {
+                let field2 = self.get_field_componet(&main2, &grid_data, om, om * neff);
+                let field3 = self.get_field_componet(&main3, &grid_data, om, om * neff);
+                FieldData {
+                    x: grid_data.xplot.clone(),
+                    Ex: field2,
+                    Ey: fieldzeros.clone(),
+                    Ez: field1,
+                    Hx: fieldzeros.clone(),
+                    Hy: field3.iter().map(|x| x / Z0).collect(),
+                    Hz: fieldzeros.clone(),
+                }
+            }
+        };
+
+        Ok(field_data)
     }
 
     pub fn get_index(&self, grid_data: &GridData) -> Vec<f64> {
