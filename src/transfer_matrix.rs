@@ -129,15 +129,16 @@ pub fn get_propagation_coefficients_transfer(
     let mut coefficients: Vec<LayerCoefficientVector> = Vec::new();
     let mut current_coefficients = LayerCoefficientVector::new(a, b);
     coefficients.push(current_coefficients);
-    let mut transfer_matrix =
+    let transfer_matrix =
         TransferMatrix::matrix_interface(layers[0].n, layers[1].n, om, k, polarization);
     current_coefficients = transfer_matrix.multiply(&current_coefficients);
     coefficients.push(current_coefficients);
     for (layer1, layer2) in zip(layers.iter().skip(1), layers.iter().skip(2)) {
-        let mut transfer_matrix = TransferMatrix::matrix_propagation(layer1.n, layer1.d, om, k);
-        let matrix = TransferMatrix::matrix_interface(layer1.n, layer2.n, om, k, polarization);
-        transfer_matrix = transfer_matrix.compose(matrix);
-        current_coefficients = transfer_matrix.multiply(&current_coefficients);
+        let propagation_matrix = TransferMatrix::matrix_propagation(layer1.n, layer1.d, om, k);
+        current_coefficients = propagation_matrix.multiply(&current_coefficients);
+        let interface_matrix =
+            TransferMatrix::matrix_interface(layer1.n, layer2.n, om, k, polarization);
+        current_coefficients = interface_matrix.multiply(&current_coefficients);
         coefficients.push(current_coefficients);
     }
     coefficients

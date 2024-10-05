@@ -292,7 +292,7 @@ impl MultiLayer {
         let xgrid: Vec<f64> = iter_num_tools::arange(xstart..xend, self.plot_step).collect();
         let grid_starts: Vec<f64> = self.layers.iter().map(|l| l.d).collect();
         let grid_starts: Vec<f64> = [vec![0.0_f64], grid_starts].concat();
-        let grid_starts: Vec<f64> = cumsum(&grid_starts).iter().map(|x| x + xstart).collect();
+        let mut grid_starts: Vec<f64> = cumsum(&grid_starts).iter().map(|x| x + xstart).collect();
         let mut grid_istarts: Vec<usize> = vec![0];
         let mut slice_iter = grid_starts.iter();
         let _ = slice_iter.next();
@@ -304,6 +304,8 @@ impl MultiLayer {
             }
         }
         grid_istarts.push(xgrid.len());
+
+        grid_starts[0] = 0.0;
 
         GridData {
             xplot: xgrid,

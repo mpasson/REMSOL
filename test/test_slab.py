@@ -66,7 +66,7 @@ if __name__ == "__main__":
             self.end = time()
 
     with Timer() as t:
-        print(coupled_slab.neff(om, pol.TE, 4))
+        print(coupled_slab.neff(om, pol.TE, 2))
     print(t.elapsed)
 
     print(slab.neff(om, pol.TM, 0))

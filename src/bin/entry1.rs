@@ -32,8 +32,8 @@ fn main() {
         om,
         om * n,
         Polarization::TE,
-        Complex::new(1.0, 0.0),
         Complex::new(0.0, 0.0),
+        Complex::new(1.0, 0.0),
     );
     for vector in coefficients {
         println!("{:?}", vector);
