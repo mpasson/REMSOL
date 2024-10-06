@@ -1,5 +1,5 @@
 [package]
-name = "multilayer_solver"
+name = "remsol"
 version = "0.1.0"
 edition = "2021"
 
@@ -12,7 +12,7 @@ pyo3 = "0.22.0"
 cumsum = "1.0.0"
 
 [lib]
-name = "multilayer_solver"
+name = "remsol"
 crate-type = ["cdylib", "rlib"]
 # The name of the target.
 # path = "src/" # The source file of the target.

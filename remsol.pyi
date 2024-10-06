@@ -1,3 +1,5 @@
+"""Module for calculating fo electromagnetic modes in multilayer structures."""
+
 from enum import Enum
 
 class Polarization(Enum):

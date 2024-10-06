@@ -1,14 +1,14 @@
-import multilayer_solver as msl
 import numpy as np
-from multilayer_solver import Polarization as pol
+import remsol
+from remsol import Polarization as pol
 
-slab = msl.MultiLayer(
+slab = remsol.MultiLayer(
     [
-        msl.Layer(1, 1),
-        msl.Layer(2, 0.6),
-        msl.Layer(1, 1),
-        # msl.Layer(2, 0.6),
-        # msl.Layer(1, 1),
+        remsol.Layer(1, 1),
+        remsol.Layer(2, 0.6),
+        remsol.Layer(1, 1),
+        # remsol.Layer(2, 0.6),
+        # remsol.Layer(1, 1),
     ]
 )
 
