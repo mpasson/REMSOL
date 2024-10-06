@@ -1,21 +1,42 @@
-fn main() {
-    println!("Enter a string: ");
-    let mut input = String::new();
-    std::io::stdin()
-        .read_line(&mut input)
-        .expect("Failed to read line");
-    let first = first_word(&input);
-    println!("The first word fo '{}' is: {}", input, first);
+extern crate num_complex;
+
+use multilayer_solver::enums::Polarization;
+use multilayer_solver::layer::Layer;
+use multilayer_solver::multilayer::GridData;
+use multilayer_solver::multilayer::MultiLayer;
+use num_complex::Complex;
+use std::{f64::consts::PI, fmt::Debug};
+
+fn set_slice(slice: &mut [f64], number_to_set: f64) {
+    for index in 0..slice.len() {
+        slice[index] = number_to_set;
+    }
 }
 
-fn first_word(s: &String) -> String {
-    let mut new_string = String::new();
-    for i in s.chars() {
-        if i != ' ' {
-            new_string.push(i);
-        } else {
-            break;
-        }
+fn test_set_slice() {
+    let mut vector: Vec<f64> = iter_num_tools::arange(0.0..1.0, 0.1).collect();
+
+    set_slice(&mut vector[1..4], -1.0);
+    println!("{:?}", vector)
+}
+
+fn main() {
+    let multi = MultiLayer::new(vec![
+        Layer::new(1.0, 1.0),
+        Layer::new(2.0, 0.6),
+        Layer::new(1.0, 1.0),
+    ]);
+    let om = 2.0 * PI / 1.55;
+    let n = multi.neff(om, Polarization::TM, 0).unwrap();
+    println!("{:?}", n);
+    let coefficients = multi.get_propagation_coefficients(
+        om,
+        om * n,
+        Polarization::TM,
+        Complex::new(0.0, 0.0),
+        Complex::new(1.0, 0.0),
+    );
+    for vector in coefficients {
+        println!("{:?}", vector);
     }
-    new_string
 }

@@ -11,7 +11,7 @@ use layer::*;
 use multilayer::*;
 
 #[pymodule]
-fn multilayer_solver(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn remsol(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BackEnd>()?;
     m.add_class::<Polarization>()?;
     m.add_class::<Layer>()?;

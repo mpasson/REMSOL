@@ -1,23 +1,23 @@
-import multilayer_solver as msl
 import numpy as np
 import pytest as pt
-from multilayer_solver import Polarization as pol
+import remsol
+from remsol import Polarization as pol
 
-slab = msl.MultiLayer(
+slab = remsol.MultiLayer(
     [
-        msl.Layer(1, 1),
-        msl.Layer(2, 0.6),
-        msl.Layer(1, 1),
+        remsol.Layer(1.0, 1.0),
+        remsol.Layer(2.0, 0.6),
+        remsol.Layer(1.0, 1.0),
     ]
 )
 
-coupled_slab = msl.MultiLayer(
+coupled_slab = remsol.MultiLayer(
     [
-        msl.Layer(1, 1),
-        msl.Layer(2, 0.6),
-        msl.Layer(1, 2.0),
-        msl.Layer(2, 0.6),
-        msl.Layer(1, 1),
+        remsol.Layer(1.0, 1.0),
+        remsol.Layer(2.0, 0.6),
+        remsol.Layer(1.0, 2.0),
+        remsol.Layer(2.0, 0.6),
+        remsol.Layer(1.0, 1.0),
     ]
 )
 
@@ -47,6 +47,8 @@ def test_coupled_slab():
 if __name__ == "__main__":
     from time import time
 
+    import matplotlib.pyplot as plt
+
     class Timer:
         def __init__(self):
             self.start = None
@@ -64,7 +66,12 @@ if __name__ == "__main__":
             self.end = time()
 
     with Timer() as t:
-        print(coupled_slab.neff(om, pol.TE, 0))
+        print(coupled_slab.neff(om, pol.TE, 2))
     print(t.elapsed)
 
     print(slab.neff(om, pol.TM, 0))
+    # coupled_slab.plot_step = 1e-2
+
+    index = coupled_slab.index()
+    plt.plot(index.x, index.n, ".")
+    plt.show()

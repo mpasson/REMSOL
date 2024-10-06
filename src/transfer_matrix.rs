@@ -2,9 +2,9 @@ extern crate itertools;
 extern crate num_complex;
 
 use crate::enums::Polarization;
-use crate::layer::Layer;
-use itertools::izip;
+use crate::layer::{Layer, LayerCoefficientVector};
 use num_complex::Complex;
+use std::iter::zip;
 
 #[derive(Debug)]
 pub struct TransferMatrix {
@@ -85,11 +85,18 @@ impl TransferMatrix {
         n2: f64,
         om: f64,
         k: f64,
-        polarizaton: Polarization,
+        polarization: Polarization,
     ) -> TransferMatrix {
-        match polarizaton {
+        match polarization {
             Polarization::TE => TransferMatrix::matrix_interface_te(n1, n2, om, k),
             Polarization::TM => TransferMatrix::matrix_interface_tm(n1, n2, om, k),
+        }
+    }
+
+    pub fn multiply(&self, coefficient_vector: &LayerCoefficientVector) -> LayerCoefficientVector {
+        LayerCoefficientVector {
+            a: self.t11 * coefficient_vector.a + self.t12 * coefficient_vector.b,
+            b: self.t21 * coefficient_vector.a + self.t22 * coefficient_vector.b,
         }
     }
 }
@@ -102,11 +109,37 @@ pub fn calculate_t_matrix(
 ) -> TransferMatrix {
     let mut result =
         TransferMatrix::matrix_interface(layers[0].n, layers[1].n, om, k, polarization);
-    for (layer1, layer2) in izip!(layers.iter().skip(1), layers.iter().skip(2)) {
+    for (layer1, layer2) in zip(layers.iter().skip(1), layers.iter().skip(2)) {
         let matrix = TransferMatrix::matrix_propagation(layer1.n, layer1.d, om, k);
         result = result.compose(matrix);
         let matrix = TransferMatrix::matrix_interface(layer1.n, layer2.n, om, k, polarization);
         result = result.compose(matrix);
     }
     result
+}
+
+pub fn get_propagation_coefficients_transfer(
+    layers: &Vec<Layer>,
+    om: f64,
+    k: f64,
+    polarization: Polarization,
+    a: Complex<f64>,
+    b: Complex<f64>,
+) -> Vec<LayerCoefficientVector> {
+    let mut coefficients: Vec<LayerCoefficientVector> = Vec::new();
+    let mut current_coefficients = LayerCoefficientVector::new(a, b);
+    coefficients.push(current_coefficients);
+    let transfer_matrix =
+        TransferMatrix::matrix_interface(layers[0].n, layers[1].n, om, k, polarization);
+    current_coefficients = transfer_matrix.multiply(&current_coefficients);
+    coefficients.push(current_coefficients);
+    for (layer1, layer2) in zip(layers.iter().skip(1), layers.iter().skip(2)) {
+        let propagation_matrix = TransferMatrix::matrix_propagation(layer1.n, layer1.d, om, k);
+        current_coefficients = propagation_matrix.multiply(&current_coefficients);
+        let interface_matrix =
+            TransferMatrix::matrix_interface(layer1.n, layer2.n, om, k, polarization);
+        current_coefficients = interface_matrix.multiply(&current_coefficients);
+        coefficients.push(current_coefficients);
+    }
+    coefficients
 }

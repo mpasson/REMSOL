@@ -1,4 +1,19 @@
+extern crate num_complex;
+
+use num_complex::Complex;
 use pyo3::prelude::*;
+
+#[derive(Debug, Copy, Clone)]
+pub struct LayerCoefficientVector {
+    pub a: Complex<f64>,
+    pub b: Complex<f64>,
+}
+
+impl LayerCoefficientVector {
+    pub fn new(a: Complex<f64>, b: Complex<f64>) -> LayerCoefficientVector {
+        LayerCoefficientVector { a, b }
+    }
+}
 
 #[pyclass]
 #[derive(Debug, Copy, Clone)]
