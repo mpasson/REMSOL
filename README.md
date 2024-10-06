@@ -16,4 +16,4 @@ REMSOL (Rust-based Electromagnetic Multi-layer Solver) is a software package for
 - [ ] Python bindings
   - [x] bare-minimum classes and methods (Polarization, Layer, MultiLayer)
   - [ ] backends methods
-  - [ ] field calculation methods
+  - [x] field calculation methods
