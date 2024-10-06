@@ -9,6 +9,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyComplex;
 use std::cmp::Ordering;
 use std::iter::zip;
+use std::ops::Add;
 
 use crate::enums::BackEnd;
 use crate::enums::Polarization;
@@ -23,6 +24,22 @@ const Z0: Complex<f64> = Complex {
     re: 376.73031346177066,
     im: 0.0,
 };
+
+fn quadrature_integration(y: Vec<Complex<f64>>, x: Vec<f64>) -> Complex<f64> {
+    let n = y.len();
+    let n2 = x.len();
+    if n != n2 {
+        panic!("The length of the input vectors must be the same")
+    }
+    let correction = Complex::new(0.5, 0.5) * (y[0] + y.last().unwrap());
+    let dx = x[1] - x[0];
+    let mut sum = Complex::new(0.0, 0.0);
+    for value in y.iter() {
+        sum += value;
+    }
+    let integral = sum - correction;
+    integral * Complex::new(dx, 0.0)
+}
 
 #[derive(Debug, Clone)]
 struct ComplexWrapper {
@@ -49,6 +66,39 @@ pub struct FieldData {
     pub Hx: Vec<Complex<f64>>,
     pub Hy: Vec<Complex<f64>>,
     pub Hz: Vec<Complex<f64>>,
+}
+
+impl FieldData {
+    pub fn get_poyinting_vector(&self) -> Complex<f64> {
+        let poynting = self
+            .Ex
+            .iter()
+            .zip(self.Hy.iter())
+            .zip(self.Ey.iter().zip(self.Hx.iter()))
+            .map(|(((&Ex, &Hy), (&Ey, &Hx)))| Ex * Hy.conj() - Ey * Hx.conj())
+            .collect();
+        quadrature_integration(poynting, self.x.clone())
+    }
+
+    pub fn normalize(&self) -> FieldData {
+        let P = self.get_poyinting_vector();
+        let norm = P.sqrt();
+        let Ex = self.Ex.iter().map(|&x| x / norm).collect();
+        let Ey = self.Ey.iter().map(|&x| x / norm).collect();
+        let Ez = self.Ez.iter().map(|&x| x / norm).collect();
+        let Hx = self.Hx.iter().map(|&x| x / norm).collect();
+        let Hy = self.Hy.iter().map(|&x| x / norm).collect();
+        let Hz = self.Hz.iter().map(|&x| x / norm).collect();
+        FieldData {
+            x: self.x.clone(),
+            Ex,
+            Ey,
+            Ez,
+            Hx,
+            Hy,
+            Hz,
+        }
+    }
 }
 
 #[pyclass]
@@ -499,7 +549,7 @@ impl MultiLayer {
             }
         };
 
-        Ok(field_data)
+        Ok(field_data.normalize())
     }
 
     pub fn get_index(&self, grid_data: &GridData) -> Vec<f64> {
