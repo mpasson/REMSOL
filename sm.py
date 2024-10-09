@@ -288,11 +288,13 @@ if __name__ == "__main__":
 
     om = 2.0 * np.pi / 1.55
 
-    # multi = MultiLayer(n_list, d_list)
+    multi = MultiLayer(n_list, d_list)
 
-    # with Timer() as t:
-    #     print(multi.solve(om, "TE"))
-    # print(t.elapsed)
+    with Timer() as t:
+        print(multi.solve(om, "TE"))
+    print(t.elapsed)
+
+    quit()
 
     # k_solutions = [_ * om for _ in n_solutions]
 

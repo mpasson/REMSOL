@@ -47,8 +47,6 @@ def test_coupled_slab():
 if __name__ == "__main__":
     from time import time
 
-    import matplotlib.pyplot as plt
-
     class Timer:
         def __init__(self):
             self.start = None
@@ -68,10 +66,3 @@ if __name__ == "__main__":
     with Timer() as t:
         print(coupled_slab.neff(om, pol.TE, 2))
     print(t.elapsed)
-
-    print(slab.neff(om, pol.TM, 0))
-    # coupled_slab.plot_step = 1e-2
-
-    index = coupled_slab.index()
-    plt.plot(index.x, index.n, ".")
-    plt.show()
