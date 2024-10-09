@@ -1,5 +1,4 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![MIT](https://img.shields.io/github/license/gdsfactory/gdsfactory)](https://choosealicense.com/licenses/mit/)
 
 # REMSOL
 
@@ -14,7 +13,7 @@ For now, the package is not available on PyPI, so you will have to build it from
 In orger to build the package, you will need:
 
 - Rust (check [rustup](https://rustup.rs/)).
-- UV ( [docs.astral.s](https://docs.astral.sh/uv/getting-started/installation/)).
+- UV ([docs.astral.sh](https://docs.astral.sh/uv/getting-started/installation/)).
 
 after cloning the repository, build the package using uv with:
 
