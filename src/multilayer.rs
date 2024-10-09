@@ -502,7 +502,7 @@ impl MultiLayer {
             Err(e) => return Err(e),
         };
 
-        let coefficient_vector = self.get_propagation_coefficients(
+        let mut coefficient_vector = self.get_propagation_coefficients(
             om,
             om * neff,
             polarization,
@@ -510,6 +510,12 @@ impl MultiLayer {
             Complex::new(1.0, 0.0),
         );
         let grid_data = self.get_grid_data();
+
+        let last_coefficient = coefficient_vector.pop().unwrap();
+        coefficient_vector.push(LayerCoefficientVector {
+            a: last_coefficient.a,
+            b: Complex::new(0.0, 0.0),
+        });
 
         let main_component =
             self.get_field_componet(&coefficient_vector, &grid_data, om, om * neff);

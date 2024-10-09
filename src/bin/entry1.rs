@@ -1,10 +1,10 @@
 extern crate num_complex;
 
-use multilayer_solver::enums::Polarization;
-use multilayer_solver::layer::Layer;
-use multilayer_solver::multilayer::GridData;
-use multilayer_solver::multilayer::MultiLayer;
 use num_complex::Complex;
+use remsol::enums::Polarization;
+use remsol::layer::Layer;
+use remsol::multilayer::GridData;
+use remsol::multilayer::MultiLayer;
 use std::{f64::consts::PI, fmt::Debug};
 
 fn set_slice(slice: &mut [f64], number_to_set: f64) {
