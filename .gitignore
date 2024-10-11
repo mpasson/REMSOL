@@ -6,3 +6,5 @@ Cargo.lock
 .zed
 **__pycache__**
 dist
+docs/_build
+.DS_Store
