@@ -102,6 +102,7 @@ impl FieldData {
 }
 
 #[pyclass]
+#[pyo3(name = "FieldData")]
 pub struct PythonFieldData {
     #[pyo3(get)]
     pub x: Vec<f64>,

@@ -4,7 +4,7 @@
 format: jb-book
 root: intro
 chapters:
-- file: examples/examples
-  sections:
-  - file: examples/slab
-  - file: examples/sweep
+  - file: examples/examples
+    sections:
+      - file: examples/slab
+      - file: examples/sweep
