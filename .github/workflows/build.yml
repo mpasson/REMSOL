@@ -7,10 +7,6 @@ name: build
 
 on:
   push:
-    branches:
-      - main
-      - master
-      - build-dev
     tags:
       - "*"
   pull_request:
