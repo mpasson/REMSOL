@@ -29,6 +29,10 @@ pip install dist/<your-whl-file>.whl
 
 and enjoy!
 
+## How to use it
+
+Check the examples in the [Documentation](https://mpasson.github.io/REMSOL/intro.html).
+
 ## Roadmap
 
 - [x] Base scattering matrix method solver implementation
