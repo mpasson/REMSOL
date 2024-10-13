@@ -2,14 +2,14 @@ extern crate cumsum;
 extern crate find_peaks;
 extern crate itertools;
 
-use itertools::izip;
 use num_complex::Complex64;
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use pyo3::types::PyComplex;
 use std::cmp::Ordering;
 use std::iter::zip;
-use std::ops::Add;
+use std::iter::Sum;
+use std::ops::{Add, Mul, Sub};
 
 use crate::enums::BackEnd;
 use crate::enums::Polarization;
@@ -25,20 +25,21 @@ const Z0: Complex<f64> = Complex {
     im: 0.0,
 };
 
-fn quadrature_integration(y: Vec<Complex<f64>>, x: Vec<f64>) -> Complex<f64> {
+fn quadrature_integration<T, U>(y: Vec<T>, x: Vec<U>) -> T
+where
+    T: Add<Output = T> + Sub<Output = T> + Mul<U, Output = T> + Sum + Copy,
+    U: Add<Output = U> + Sub<Output = U> + Copy,
+{
     let n = y.len();
     let n2 = x.len();
     if n != n2 {
         panic!("The length of the input vectors must be the same")
     }
-    let correction = Complex::new(0.5, 0.5) * (y[0] + y.last().unwrap());
+    let correction = y.last().unwrap().clone() + y.first().unwrap().clone();
     let dx = x[1] - x[0];
-    let mut sum = Complex::new(0.0, 0.0);
-    for value in y.iter() {
-        sum += value;
-    }
+    let sum: T = y.into_iter().sum();
     let integral = sum - correction;
-    integral * Complex::new(dx, 0.0)
+    integral * dx
 }
 
 #[derive(Debug, Clone)]
@@ -58,6 +59,7 @@ pub struct GridData {
     pub ixstarts: Vec<usize>,
 }
 
+#[allow(non_snake_case)]
 pub struct FieldData {
     pub x: Vec<f64>,
     pub Ex: Vec<Complex<f64>>,
@@ -75,49 +77,50 @@ impl FieldData {
             .iter()
             .zip(self.Hy.iter())
             .zip(self.Ey.iter().zip(self.Hx.iter()))
-            .map(|(((&Ex, &Hy), (&Ey, &Hx)))| Ex * Hy.conj() - Ey * Hx.conj())
+            .map(|((&ex, &hy), (&ey, &hx))| ex * hy.conj() - ey * hx.conj())
             .collect();
         quadrature_integration(poynting, self.x.clone())
     }
 
     pub fn normalize(&self) -> FieldData {
-        let P = self.get_poyinting_vector();
-        let norm = P.sqrt();
-        let Ex = self.Ex.iter().map(|&x| x / norm).collect();
-        let Ey = self.Ey.iter().map(|&x| x / norm).collect();
-        let Ez = self.Ez.iter().map(|&x| x / norm).collect();
-        let Hx = self.Hx.iter().map(|&x| x / norm).collect();
-        let Hy = self.Hy.iter().map(|&x| x / norm).collect();
-        let Hz = self.Hz.iter().map(|&x| x / norm).collect();
+        let poynting_vector = self.get_poyinting_vector();
+        let norm = poynting_vector.sqrt();
+        let ex = self.Ex.iter().map(|&x| x / norm).collect();
+        let ey = self.Ey.iter().map(|&x| x / norm).collect();
+        let ez = self.Ez.iter().map(|&x| x / norm).collect();
+        let hx = self.Hx.iter().map(|&x| x / norm).collect();
+        let hy = self.Hy.iter().map(|&x| x / norm).collect();
+        let hz = self.Hz.iter().map(|&x| x / norm).collect();
         FieldData {
             x: self.x.clone(),
-            Ex,
-            Ey,
-            Ez,
-            Hx,
-            Hy,
-            Hz,
+            Ex: ex,
+            Ey: ey,
+            Ez: ez,
+            Hx: hx,
+            Hy: hy,
+            Hz: hz,
         }
     }
 }
 
 #[pyclass]
 #[pyo3(name = "FieldData")]
+#[allow(non_snake_case)]
 pub struct PythonFieldData {
     #[pyo3(get)]
-    pub x: Vec<f64>,
+    x: Vec<f64>,
     #[pyo3(get)]
-    pub Ex: Vec<ComplexWrapper>,
+    Ex: Vec<ComplexWrapper>,
     #[pyo3(get)]
-    pub Ey: Vec<ComplexWrapper>,
+    Ey: Vec<ComplexWrapper>,
     #[pyo3(get)]
-    pub Ez: Vec<ComplexWrapper>,
+    Ez: Vec<ComplexWrapper>,
     #[pyo3(get)]
-    pub Hx: Vec<ComplexWrapper>,
+    Hx: Vec<ComplexWrapper>,
     #[pyo3(get)]
-    pub Hy: Vec<ComplexWrapper>,
+    Hy: Vec<ComplexWrapper>,
     #[pyo3(get)]
-    pub Hz: Vec<ComplexWrapper>,
+    Hz: Vec<ComplexWrapper>,
 }
 
 #[pyclass]
@@ -518,8 +521,6 @@ impl MultiLayer {
             b: Complex::new(0.0, 0.0),
         });
 
-        let main_component =
-            self.get_field_componet(&coefficient_vector, &grid_data, om, om * neff);
         let coefficients = self.get_coefficient_all_components(om, om * neff, coefficient_vector);
 
         let (main1, main2, main3, maink, mainb, zeros) = coefficients;
@@ -778,5 +779,19 @@ mod tests {
             Complex::new(1.0, 0.0),
         );
         assert_vec_approx_equal(&coefficients, &ref_coefficients, 2e-9);
+    }
+
+    #[test]
+    fn test_field_normalization() {
+        let slab = create_slab_multilayer();
+        let field = slab.field(2.0 * PI / 1.55, Polarization::TE, 0).unwrap();
+        let amplitude = field.Ey[1300];
+        let reference = Complex::new(21.207074050, 0.0);
+        assert!(
+            amplitude.approx_eq(&reference, 1e-9),
+            "{:?} != {:?}",
+            amplitude,
+            reference
+        );
     }
 }
