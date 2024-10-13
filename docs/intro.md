@@ -10,7 +10,11 @@ The software is written in Rust for speed and provides a Python interface for ea
 
 ### PyPi
 
-Publishing the package on PyPi is planned, but not yet available. For now, you will have to build the package from source.
+The package is availavlbe on PyPi, so you can install it using pip:
+
+```bash
+pip install remsol
+```
 
 ### Building from source
 
