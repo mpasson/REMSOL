@@ -4,42 +4,22 @@
 
 ## Overview
 
-REMSOL (Rust-based Electromagnetic Multi-layer Solver) is a software package for finding electromagnetic modes in multi-layered media. It is written in Rust and implements both the scattering and transfer matrix method.
+REMSOL (Rust-based Electromagnetic Multi-layer Solver) is a software package for finding electromagnetic modes in 1D multi-layered media. It is written in Rust for speed and provides a Python interface for ease of use.
 
 ## Installation
 
-For now, the package is not available on PyPI, so you will have to build it from source.
-
-In orger to build the package, you will need:
-
-- Rust (check [rustup](https://rustup.rs/)).
-- UV ([docs.astral.sh](https://docs.astral.sh/uv/getting-started/installation/)).
-
-after cloning the repository, build the package using uv with:
+The package is availavlbe on PyPi, so you can install it using pip:
 
 ```bash
-uv build
+pip install remsol
 ```
 
-this will create a `.tar.gz` and a `.whl` file in the `dist` directory. You can install the package using pip:
-
-```bash
-pip install dist/<your-whl-file>.whl
-```
-
-and enjoy!
+if you want to build the package from source, you can check out the [Documentation](https://mpasson.github.io/REMSOL/intro.html#building-from-source)
 
 ## How to use it
 
-Check the examples in the [Documentation](https://mpasson.github.io/REMSOL/intro.html).
+Check the examples in the [Documentation](https://mpasson.github.io/REMSOL/examples/examples.html).
 
-## Roadmap
+## Contributing
 
-- [x] Base scattering matrix method solver implementation
-- [x] Base transfer matrix method solver implementation
-- [x] Field calculation using transfer matrix method
-- [ ] Field calculation using scattering matrix method
-- [ ] Python bindings
-  - [x] bare-minimum classes and methods (Polarization, Layer, MultiLayer)
-  - [ ] backends methods
-  - [x] field calculation methods
+Contributions are welcome. Plase feel free to open an issue or a pull request.
