@@ -5,7 +5,6 @@ extern crate itertools;
 use num_complex::Complex64;
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
-use pyo3::types::PyComplex;
 use std::cmp::Ordering;
 use std::iter::zip;
 use std::iter::Sum;
@@ -42,31 +41,28 @@ where
     integral * dx
 }
 
-#[derive(Debug, Clone)]
-struct ComplexWrapper {
-    complex: Complex<f64>,
-}
-
-impl IntoPy<PyObject> for ComplexWrapper {
-    fn into_py(self, py: Python<'_>) -> Py<PyAny> {
-        PyComplex::from_doubles_bound(py, self.complex.re, self.complex.im).to_object(py)
-    }
-}
-
 pub struct GridData {
     pub xplot: Vec<f64>,
     pub xstarts: Vec<f64>,
     pub ixstarts: Vec<usize>,
 }
 
+#[pyclass]
 #[allow(non_snake_case)]
 pub struct FieldData {
+    #[pyo3(get)]
     pub x: Vec<f64>,
+    #[pyo3(get)]
     pub Ex: Vec<Complex<f64>>,
+    #[pyo3(get)]
     pub Ey: Vec<Complex<f64>>,
+    #[pyo3(get)]
     pub Ez: Vec<Complex<f64>>,
+    #[pyo3(get)]
     pub Hx: Vec<Complex<f64>>,
+    #[pyo3(get)]
     pub Hy: Vec<Complex<f64>>,
+    #[pyo3(get)]
     pub Hz: Vec<Complex<f64>>,
 }
 
@@ -101,26 +97,6 @@ impl FieldData {
             Hz: hz,
         }
     }
-}
-
-#[pyclass]
-#[pyo3(name = "FieldData")]
-#[allow(non_snake_case)]
-pub struct PythonFieldData {
-    #[pyo3(get)]
-    x: Vec<f64>,
-    #[pyo3(get)]
-    Ex: Vec<ComplexWrapper>,
-    #[pyo3(get)]
-    Ey: Vec<ComplexWrapper>,
-    #[pyo3(get)]
-    Ez: Vec<ComplexWrapper>,
-    #[pyo3(get)]
-    Hx: Vec<ComplexWrapper>,
-    #[pyo3(get)]
-    Hy: Vec<ComplexWrapper>,
-    #[pyo3(get)]
-    Hz: Vec<ComplexWrapper>,
 }
 
 #[pyclass]
@@ -211,43 +187,11 @@ impl MultiLayer {
         omega: f64,
         polarization: Option<Polarization>,
         mode: Option<usize>,
-    ) -> PyResult<PythonFieldData> {
+    ) -> PyResult<FieldData> {
         let polarization = polarization.unwrap_or(Polarization::TE);
         let mode = mode.unwrap_or(0);
         match self.field(omega, polarization, mode) {
-            Ok(field_data) => Ok(PythonFieldData {
-                x: field_data.x,
-                Ex: field_data
-                    .Ex
-                    .iter()
-                    .map(|c| ComplexWrapper { complex: *c })
-                    .collect(),
-                Ey: field_data
-                    .Ey
-                    .iter()
-                    .map(|c| ComplexWrapper { complex: *c })
-                    .collect(),
-                Ez: field_data
-                    .Ez
-                    .iter()
-                    .map(|c| ComplexWrapper { complex: *c })
-                    .collect(),
-                Hx: field_data
-                    .Hx
-                    .iter()
-                    .map(|c| ComplexWrapper { complex: *c })
-                    .collect(),
-                Hy: field_data
-                    .Hy
-                    .iter()
-                    .map(|c| ComplexWrapper { complex: *c })
-                    .collect(),
-                Hz: field_data
-                    .Hz
-                    .iter()
-                    .map(|c| ComplexWrapper { complex: *c })
-                    .collect(),
-            }),
+            Ok(field_data) => Ok(field_data),
             Err(err) => Err(PyException::new_err(err)),
         }
     }

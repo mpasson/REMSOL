@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import remsol
 from remsol import Polarization as pol
 
@@ -12,7 +13,13 @@ slab = remsol.MultiLayer(
     ]
 )
 
-np.pi
+
+def test_single_amplitude():
+    field = slab.field(2.0 * np.pi / 1.55, pol.TE, 0)
+    amplitude = field.Ey[1300]
+    assert np.real(amplitude) == pytest.approx(21.207074050)
+    assert np.imag(amplitude) == pytest.approx(0.0)
+
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
