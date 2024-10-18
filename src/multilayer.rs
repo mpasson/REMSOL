@@ -207,19 +207,13 @@ impl MultiLayer {
     }
 
     fn get_threshold(accuracy: i32) -> f64 {
-        if accuracy < 3 {
-            return -2.0;
+        match accuracy {
+            0..=2 => -2.0,
+            3..=5 => 0.0,
+            6..=8 => 3.0,
+            9..=11 => 6.0,
+            _ => 9.0,
         }
-        if accuracy < 6 {
-            return 0.0;
-        }
-        if accuracy < 9 {
-            return 3.0;
-        }
-        if accuracy < 12 {
-            return 6.0;
-        }
-        return 9.0;
     }
 
     fn characteristic_function(&self, om: f64, k: f64, polarization: Polarization) -> Complex<f64> {
@@ -246,9 +240,8 @@ impl MultiLayer {
     ) -> Vec<f64> {
         let kv: Vec<f64> = iter_num_tools::arange(k_min..k_max, step).collect();
         let det: Vec<f64> = kv
-            .clone()
-            .into_iter()
-            .map(|k| {
+            .iter()
+            .map(|&k| {
                 self.characteristic_function(om, k, polarization)
                     .norm()
                     .log10()
@@ -258,15 +251,7 @@ impl MultiLayer {
         let mut peak_finder = PeakFinder::new(&det);
         let peaks = peak_finder.with_min_height(treshold).find_peaks();
 
-        let ksolutions = {
-            peaks
-                .into_iter()
-                .map(|p| kv.get(p.middle_position()).unwrap_or_else(|| &0.0))
-                // .flatten()
-                .collect::<Vec<_>>()
-        };
-
-        ksolutions.into_iter().map(|k| *k).collect::<Vec<_>>()
+        peaks.into_iter().map(|p| kv[p.middle_position()]).collect()
     }
 
     pub fn solve(&self, om: f64, polarization: Polarization) -> Vec<f64> {
@@ -367,8 +352,8 @@ impl MultiLayer {
         let x = grid_data.xplot.clone();
 
         let mut field_vectors: Vec<Complex64> = Vec::new();
-        for (i, (istart, iend)) in zip(
-            grid_data.ixstarts.clone(),
+        for (i, (&istart, &iend)) in zip(
+            grid_data.ixstarts.clone().iter(),
             grid_data.ixstarts.clone().iter().skip(1),
         )
         .enumerate()
@@ -376,7 +361,7 @@ impl MultiLayer {
             let xstart = grid_data.xstarts[i];
             let coefficients = coefficient_vector[i];
             let layer = &self.layers[i];
-            let xslice: Vec<f64> = x[istart..*iend]
+            let xslice: Vec<f64> = x[istart..iend]
                 .iter()
                 .map(|x| x - xstart)
                 .collect::<Vec<_>>();
