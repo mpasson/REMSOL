@@ -104,20 +104,26 @@ pub struct IndexData {
     #[pyo3(get)]
     pub x: Vec<f64>,
     #[pyo3(get)]
-    pub n: Vec<f64>,
+    pub n: Vec<Complex<f64>>,
 }
 
-fn get_field_slice(
+fn get_field_slice<T, U, V>(
     a: Complex<f64>,
     b: Complex<f64>,
-    om: f64,
-    k: f64,
-    n: f64,
+    om: T,
+    k: U,
+    n: V,
     x: Vec<f64>,
-) -> Vec<Complex<f64>> {
-    let om = num_complex::Complex::new(om, 0.0);
-    let k = num_complex::Complex::new(k, 0.0);
-    let n = num_complex::Complex::new(n, 0.0);
+) -> Vec<Complex<f64>>
+where
+    T: Into<Complex<f64>> + Copy,
+    U: Into<Complex<f64>> + Copy,
+    V: Into<Complex<f64>> + Copy,
+{
+    let om: Complex<f64> = om.into();
+    let k: Complex<f64> = k.into();
+    let n: Complex<f64> = n.into();
+
     let beta = ((om * n).powi(2) - k.powi(2)).sqrt();
     x.iter()
         .map(|x| {
@@ -403,7 +409,7 @@ impl MultiLayer {
         ];
         for (layer, coefficients) in zip(self.layers.iter(), main1.iter()) {
             let kpar = ((layer.n * om).powi(2) - k.powi(2)).sqrt();
-            let n = Complex::new(layer.n, 0.0);
+            let n = layer.n;
             main2.push(LayerCoefficientVector::new(
                 -coefficients.a * k / kpar,
                 coefficients.b * k / kpar,
@@ -489,7 +495,7 @@ impl MultiLayer {
         Ok(field_data.normalize())
     }
 
-    pub fn get_index(&self, grid_data: &GridData) -> Vec<f64> {
+    pub fn get_index(&self, grid_data: &GridData) -> Vec<Complex<f64>> {
         let xgrid = grid_data.xplot.clone();
         let mut n = vec![self.layers[0].n; xgrid.len()];
         for (i, layer) in self.layers.iter().enumerate() {
@@ -502,14 +508,14 @@ impl MultiLayer {
 }
 
 pub fn find_minmax_n(layers: &Vec<Layer>) -> (f64, f64) {
-    let mut min_n = layers[0].n;
-    let mut max_n = layers[0].n;
+    let mut min_n = layers[0].n.re;
+    let mut max_n = layers[0].n.re;
     for layer in layers.iter() {
-        if layer.n < min_n {
-            min_n = layer.n;
+        if layer.n.re < min_n {
+            min_n = layer.n.re;
         }
-        if layer.n > max_n {
-            max_n = layer.n;
+        if layer.n.re > max_n {
+            max_n = layer.n.re;
         }
     }
     (min_n, max_n)
@@ -561,20 +567,20 @@ mod tests {
 
     fn create_slab_multilayer() -> MultiLayer {
         let layers: Vec<Layer> = vec![
-            Layer::new(1.0, 1.0),
-            Layer::new(2.0, 0.6),
-            Layer::new(1.0, 1.0),
+            Layer::new(1.0.into(), 1.0),
+            Layer::new(2.0.into(), 0.6),
+            Layer::new(1.0.into(), 1.0),
         ];
         MultiLayer::new(layers)
     }
 
     fn create_coupled_slab_multilayer() -> MultiLayer {
         let layers: Vec<Layer> = vec![
-            Layer::new(1.0, 1.0),
-            Layer::new(2.0, 0.6),
-            Layer::new(1.0, 2.0),
-            Layer::new(2.0, 0.6),
-            Layer::new(1.0, 1.0),
+            Layer::new(1.0.into(), 1.0),
+            Layer::new(2.0.into(), 0.6),
+            Layer::new(1.0.into(), 2.0),
+            Layer::new(2.0.into(), 0.6),
+            Layer::new(1.0.into(), 1.0),
         ];
         MultiLayer::new(layers)
     }

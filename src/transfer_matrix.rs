@@ -33,12 +33,19 @@ impl TransferMatrix {
         }
     }
 
-    pub fn matrix_propagation(n: f64, d: f64, om: f64, k: f64) -> TransferMatrix {
-        let om = Complex::new(om, 0.0);
-        let k = Complex::new(k, 0.0);
-        let d = Complex::new(d, 0.0);
-        let a = ((om * n).powi(2) - k.powi(2)).sqrt();
-        let phase_positive = Complex::new(0.0, 1.0) * a * d;
+    pub fn matrix_propagation<T, U, V, W>(n: T, d: U, om: V, k: W) -> TransferMatrix
+    where
+        T: Into<Complex<f64>>,
+        U: Into<Complex<f64>>,
+        V: Into<Complex<f64>>,
+        W: Into<Complex<f64>>,
+    {
+        let om: Complex<f64> = om.into();
+        let k: Complex<f64> = k.into();
+        let d: Complex<f64> = d.into();
+        let n: Complex<f64> = n.into();
+        let a = ((om.clone() * n.clone()).powi(2) - k.clone().powi(2)).sqrt();
+        let phase_positive = Complex::new(0.0, 1.0) * a.clone() * d.clone();
         let phase_negative = Complex::new(0.0, -1.0) * a * d;
         TransferMatrix {
             t11: phase_positive.exp(),
@@ -48,11 +55,17 @@ impl TransferMatrix {
         }
     }
 
-    pub fn matrix_interface_te(n1: f64, n2: f64, om: f64, k: f64) -> TransferMatrix {
-        let n1 = Complex::new(n1, 0.0);
-        let n2 = Complex::new(n2, 0.0);
-        let om = Complex::new(om, 0.0);
-        let k = Complex::new(k, 0.0);
+    pub fn matrix_interface_te<T, U, V, W>(n1: T, n2: U, om: V, k: W) -> TransferMatrix
+    where
+        T: Into<Complex<f64>>,
+        U: Into<Complex<f64>>,
+        V: Into<Complex<f64>>,
+        W: Into<Complex<f64>>,
+    {
+        let n1: Complex<f64> = n1.into();
+        let n2: Complex<f64> = n2.into();
+        let om: Complex<f64> = om.into();
+        let k: Complex<f64> = k.into();
 
         let k1 = ((om * n1).powi(2) - k.powi(2)).sqrt();
         let k2 = ((om * n2).powi(2) - k.powi(2)).sqrt();
@@ -64,11 +77,17 @@ impl TransferMatrix {
         }
     }
 
-    pub fn matrix_interface_tm(n1: f64, n2: f64, om: f64, k: f64) -> TransferMatrix {
-        let n1 = Complex::new(n1, 0.0);
-        let n2 = Complex::new(n2, 0.0);
-        let om = Complex::new(om, 0.0);
-        let k = Complex::new(k, 0.0);
+    pub fn matrix_interface_tm<T, U, V, W>(n1: T, n2: U, om: V, k: W) -> TransferMatrix
+    where
+        T: Into<Complex<f64>>,
+        U: Into<Complex<f64>>,
+        V: Into<Complex<f64>>,
+        W: Into<Complex<f64>>,
+    {
+        let n1: Complex<f64> = n1.into();
+        let n2: Complex<f64> = n2.into();
+        let om: Complex<f64> = om.into();
+        let k: Complex<f64> = k.into();
 
         let k1 = n2.powi(2) * ((om * n1).powi(2) - k.powi(2)).sqrt();
         let k2 = n1.powi(2) * ((om * n2).powi(2) - k.powi(2)).sqrt();
@@ -80,13 +99,19 @@ impl TransferMatrix {
         }
     }
 
-    pub fn matrix_interface(
-        n1: f64,
-        n2: f64,
-        om: f64,
-        k: f64,
+    pub fn matrix_interface<T, U, V, W>(
+        n1: T,
+        n2: U,
+        om: V,
+        k: W,
         polarization: Polarization,
-    ) -> TransferMatrix {
+    ) -> TransferMatrix
+    where
+        T: Into<Complex<f64>>,
+        U: Into<Complex<f64>>,
+        V: Into<Complex<f64>>,
+        W: Into<Complex<f64>>,
+    {
         match polarization {
             Polarization::TE => TransferMatrix::matrix_interface_te(n1, n2, om, k),
             Polarization::TM => TransferMatrix::matrix_interface_tm(n1, n2, om, k),
@@ -101,12 +126,16 @@ impl TransferMatrix {
     }
 }
 
-pub fn calculate_t_matrix(
+pub fn calculate_t_matrix<T, U>(
     layers: &Vec<Layer>,
-    om: f64,
-    k: f64,
+    om: T,
+    k: U,
     polarization: Polarization,
-) -> TransferMatrix {
+) -> TransferMatrix
+where
+    T: Into<Complex<f64>> + Copy,
+    U: Into<Complex<f64>> + Copy,
+{
     let mut result =
         TransferMatrix::matrix_interface(layers[0].n, layers[1].n, om, k, polarization);
     for (layer1, layer2) in zip(layers.iter().skip(1), layers.iter().skip(2)) {

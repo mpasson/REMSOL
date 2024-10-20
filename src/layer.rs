@@ -18,14 +18,14 @@ impl LayerCoefficientVector {
 #[pyclass]
 #[derive(Debug, Copy, Clone)]
 pub struct Layer {
-    pub n: f64,
+    pub n: Complex<f64>,
     pub d: f64,
 }
 
 #[pymethods]
 impl Layer {
     #[new]
-    pub fn new(n: f64, d: f64) -> Layer {
+    pub fn new(n: Complex<f64>, d: f64) -> Layer {
         Layer { n, d }
     }
 
