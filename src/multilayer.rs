@@ -2,14 +2,13 @@ extern crate cumsum;
 extern crate find_peaks;
 extern crate itertools;
 
-use itertools::izip;
 use num_complex::Complex64;
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
-use pyo3::types::PyComplex;
 use std::cmp::Ordering;
 use std::iter::zip;
-use std::ops::Add;
+use std::iter::Sum;
+use std::ops::{Add, Mul, Sub};
 
 use crate::enums::BackEnd;
 use crate::enums::Polarization;
@@ -25,31 +24,21 @@ const Z0: Complex<f64> = Complex {
     im: 0.0,
 };
 
-fn quadrature_integration(y: Vec<Complex<f64>>, x: Vec<f64>) -> Complex<f64> {
+fn quadrature_integration<T, U>(y: Vec<T>, x: Vec<U>) -> T
+where
+    T: Add<Output = T> + Sub<Output = T> + Mul<U, Output = T> + Sum + Copy,
+    U: Add<Output = U> + Sub<Output = U> + Copy,
+{
     let n = y.len();
     let n2 = x.len();
     if n != n2 {
         panic!("The length of the input vectors must be the same")
     }
-    let correction = Complex::new(0.5, 0.5) * (y[0] + y.last().unwrap());
+    let correction = y.last().unwrap().clone() + y.first().unwrap().clone();
     let dx = x[1] - x[0];
-    let mut sum = Complex::new(0.0, 0.0);
-    for value in y.iter() {
-        sum += value;
-    }
+    let sum: T = y.into_iter().sum();
     let integral = sum - correction;
-    integral * Complex::new(dx, 0.0)
-}
-
-#[derive(Debug, Clone)]
-struct ComplexWrapper {
-    complex: Complex<f64>,
-}
-
-impl IntoPy<PyObject> for ComplexWrapper {
-    fn into_py(self, py: Python<'_>) -> Py<PyAny> {
-        PyComplex::from_doubles_bound(py, self.complex.re, self.complex.im).to_object(py)
-    }
+    integral * dx
 }
 
 pub struct GridData {
@@ -58,13 +47,22 @@ pub struct GridData {
     pub ixstarts: Vec<usize>,
 }
 
+#[pyclass]
+#[allow(non_snake_case)]
 pub struct FieldData {
+    #[pyo3(get)]
     pub x: Vec<f64>,
+    #[pyo3(get)]
     pub Ex: Vec<Complex<f64>>,
+    #[pyo3(get)]
     pub Ey: Vec<Complex<f64>>,
+    #[pyo3(get)]
     pub Ez: Vec<Complex<f64>>,
+    #[pyo3(get)]
     pub Hx: Vec<Complex<f64>>,
+    #[pyo3(get)]
     pub Hy: Vec<Complex<f64>>,
+    #[pyo3(get)]
     pub Hz: Vec<Complex<f64>>,
 }
 
@@ -75,49 +73,30 @@ impl FieldData {
             .iter()
             .zip(self.Hy.iter())
             .zip(self.Ey.iter().zip(self.Hx.iter()))
-            .map(|(((&Ex, &Hy), (&Ey, &Hx)))| Ex * Hy.conj() - Ey * Hx.conj())
+            .map(|((&ex, &hy), (&ey, &hx))| ex * hy.conj() - ey * hx.conj())
             .collect();
         quadrature_integration(poynting, self.x.clone())
     }
 
     pub fn normalize(&self) -> FieldData {
-        let P = self.get_poyinting_vector();
-        let norm = P.sqrt();
-        let Ex = self.Ex.iter().map(|&x| x / norm).collect();
-        let Ey = self.Ey.iter().map(|&x| x / norm).collect();
-        let Ez = self.Ez.iter().map(|&x| x / norm).collect();
-        let Hx = self.Hx.iter().map(|&x| x / norm).collect();
-        let Hy = self.Hy.iter().map(|&x| x / norm).collect();
-        let Hz = self.Hz.iter().map(|&x| x / norm).collect();
+        let poynting_vector = self.get_poyinting_vector();
+        let norm = poynting_vector.sqrt();
+        let ex = self.Ex.iter().map(|&x| x / norm).collect();
+        let ey = self.Ey.iter().map(|&x| x / norm).collect();
+        let ez = self.Ez.iter().map(|&x| x / norm).collect();
+        let hx = self.Hx.iter().map(|&x| x / norm).collect();
+        let hy = self.Hy.iter().map(|&x| x / norm).collect();
+        let hz = self.Hz.iter().map(|&x| x / norm).collect();
         FieldData {
             x: self.x.clone(),
-            Ex,
-            Ey,
-            Ez,
-            Hx,
-            Hy,
-            Hz,
+            Ex: ex,
+            Ey: ey,
+            Ez: ez,
+            Hx: hx,
+            Hy: hy,
+            Hz: hz,
         }
     }
-}
-
-#[pyclass]
-#[pyo3(name = "FieldData")]
-pub struct PythonFieldData {
-    #[pyo3(get)]
-    pub x: Vec<f64>,
-    #[pyo3(get)]
-    pub Ex: Vec<ComplexWrapper>,
-    #[pyo3(get)]
-    pub Ey: Vec<ComplexWrapper>,
-    #[pyo3(get)]
-    pub Ez: Vec<ComplexWrapper>,
-    #[pyo3(get)]
-    pub Hx: Vec<ComplexWrapper>,
-    #[pyo3(get)]
-    pub Hy: Vec<ComplexWrapper>,
-    #[pyo3(get)]
-    pub Hz: Vec<ComplexWrapper>,
 }
 
 #[pyclass]
@@ -208,43 +187,11 @@ impl MultiLayer {
         omega: f64,
         polarization: Option<Polarization>,
         mode: Option<usize>,
-    ) -> PyResult<PythonFieldData> {
+    ) -> PyResult<FieldData> {
         let polarization = polarization.unwrap_or(Polarization::TE);
         let mode = mode.unwrap_or(0);
         match self.field(omega, polarization, mode) {
-            Ok(field_data) => Ok(PythonFieldData {
-                x: field_data.x,
-                Ex: field_data
-                    .Ex
-                    .iter()
-                    .map(|c| ComplexWrapper { complex: *c })
-                    .collect(),
-                Ey: field_data
-                    .Ey
-                    .iter()
-                    .map(|c| ComplexWrapper { complex: *c })
-                    .collect(),
-                Ez: field_data
-                    .Ez
-                    .iter()
-                    .map(|c| ComplexWrapper { complex: *c })
-                    .collect(),
-                Hx: field_data
-                    .Hx
-                    .iter()
-                    .map(|c| ComplexWrapper { complex: *c })
-                    .collect(),
-                Hy: field_data
-                    .Hy
-                    .iter()
-                    .map(|c| ComplexWrapper { complex: *c })
-                    .collect(),
-                Hz: field_data
-                    .Hz
-                    .iter()
-                    .map(|c| ComplexWrapper { complex: *c })
-                    .collect(),
-            }),
+            Ok(field_data) => Ok(field_data),
             Err(err) => Err(PyException::new_err(err)),
         }
     }
@@ -260,19 +207,13 @@ impl MultiLayer {
     }
 
     fn get_threshold(accuracy: i32) -> f64 {
-        if accuracy < 3 {
-            return -2.0;
+        match accuracy {
+            0..=2 => -2.0,
+            3..=5 => 0.0,
+            6..=8 => 3.0,
+            9..=11 => 6.0,
+            _ => 9.0,
         }
-        if accuracy < 6 {
-            return 0.0;
-        }
-        if accuracy < 9 {
-            return 3.0;
-        }
-        if accuracy < 12 {
-            return 6.0;
-        }
-        return 9.0;
     }
 
     fn characteristic_function(&self, om: f64, k: f64, polarization: Polarization) -> Complex<f64> {
@@ -299,9 +240,8 @@ impl MultiLayer {
     ) -> Vec<f64> {
         let kv: Vec<f64> = iter_num_tools::arange(k_min..k_max, step).collect();
         let det: Vec<f64> = kv
-            .clone()
-            .into_iter()
-            .map(|k| {
+            .iter()
+            .map(|&k| {
                 self.characteristic_function(om, k, polarization)
                     .norm()
                     .log10()
@@ -311,15 +251,7 @@ impl MultiLayer {
         let mut peak_finder = PeakFinder::new(&det);
         let peaks = peak_finder.with_min_height(treshold).find_peaks();
 
-        let ksolutions = {
-            peaks
-                .into_iter()
-                .map(|p| kv.get(p.middle_position()).unwrap_or_else(|| &0.0))
-                // .flatten()
-                .collect::<Vec<_>>()
-        };
-
-        ksolutions.into_iter().map(|k| *k).collect::<Vec<_>>()
+        peaks.into_iter().map(|p| kv[p.middle_position()]).collect()
     }
 
     pub fn solve(&self, om: f64, polarization: Polarization) -> Vec<f64> {
@@ -420,8 +352,8 @@ impl MultiLayer {
         let x = grid_data.xplot.clone();
 
         let mut field_vectors: Vec<Complex64> = Vec::new();
-        for (i, (istart, iend)) in zip(
-            grid_data.ixstarts.clone(),
+        for (i, (&istart, &iend)) in zip(
+            grid_data.ixstarts.clone().iter(),
             grid_data.ixstarts.clone().iter().skip(1),
         )
         .enumerate()
@@ -429,7 +361,7 @@ impl MultiLayer {
             let xstart = grid_data.xstarts[i];
             let coefficients = coefficient_vector[i];
             let layer = &self.layers[i];
-            let xslice: Vec<f64> = x[istart..*iend]
+            let xslice: Vec<f64> = x[istart..iend]
                 .iter()
                 .map(|x| x - xstart)
                 .collect::<Vec<_>>();
@@ -518,8 +450,6 @@ impl MultiLayer {
             b: Complex::new(0.0, 0.0),
         });
 
-        let main_component =
-            self.get_field_componet(&coefficient_vector, &grid_data, om, om * neff);
         let coefficients = self.get_coefficient_all_components(om, om * neff, coefficient_vector);
 
         let (main1, main2, main3, maink, mainb, zeros) = coefficients;
@@ -778,5 +708,19 @@ mod tests {
             Complex::new(1.0, 0.0),
         );
         assert_vec_approx_equal(&coefficients, &ref_coefficients, 2e-9);
+    }
+
+    #[test]
+    fn test_field_normalization() {
+        let slab = create_slab_multilayer();
+        let field = slab.field(2.0 * PI / 1.55, Polarization::TE, 0).unwrap();
+        let amplitude = field.Ey[1300];
+        let reference = Complex::new(21.207074050, 0.0);
+        assert!(
+            amplitude.approx_eq(&reference, 1e-9),
+            "{:?} != {:?}",
+            amplitude,
+            reference
+        );
     }
 }
