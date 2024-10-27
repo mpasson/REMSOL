@@ -1,5 +1,10 @@
 //! This modules implements the enums used in the library.
+extern crate clap;
+extern crate serde;
+
+use clap::ValueEnum;
 use pyo3::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// Enum for schosing the back end of the simulation.
 #[pyclass]
@@ -15,7 +20,7 @@ pub enum BackEnd {
 
 /// Enum for choosing the polarization of the light.
 #[pyclass]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Serialize, Deserialize, Debug, ValueEnum)]
 pub enum Polarization {
     /// TE polarization.
     TE,

@@ -1,8 +1,10 @@
 //! Implementation of the Layer and related structs
 extern crate num_complex;
+extern crate serde;
 
 use num_complex::Complex;
 use pyo3::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// Struct representing the modal coefficient inside a layer.
 #[derive(Debug, Copy, Clone)]
@@ -23,7 +25,7 @@ impl LayerCoefficientVector {
 /// Struct representing a layer in the stack.
 /// This class is also available in the Python API.
 #[pyclass]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct Layer {
     /// Refractive index of the layer.
     pub n: f64,
