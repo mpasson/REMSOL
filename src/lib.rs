@@ -1,3 +1,5 @@
+//!Rust module for culcuation of electromagnetic modes in 1D multilayer structures.
+
 use pyo3::prelude::*;
 
 pub mod enums;

@@ -644,7 +644,7 @@ impl MultiLayer {
 }
 
 /// Calculates the minimum and maximum refractive index of a list of layers.
-pub fn find_minmax_n(layers: &Vec<Layer>) -> (f64, f64) {
+fn find_minmax_n(layers: &Vec<Layer>) -> (f64, f64) {
     let mut min_n = layers[0].n;
     let mut max_n = layers[0].n;
     for layer in layers.iter() {

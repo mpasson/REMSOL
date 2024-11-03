@@ -1,7 +1,11 @@
 [package]
 name = "remsol"
+description = "Electromagnetic mode solver for 1D multilayer structures"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/mpasson/REMSOL"
 
 [dependencies]
 find_peaks = "0.1.5"
