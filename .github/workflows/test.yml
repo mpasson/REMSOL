@@ -6,10 +6,23 @@ on:
 jobs:
   test_python:
     runs-on: ubuntu-latest
-    name: Test Python
+    name: Test Python API
     steps:
       - uses: actions/checkout@v4
       - name: Install uv
         uses: astral-sh/setup-uv@v3
       - name: Test Python
         run: uv run pytest test
+
+  test_cargo:
+    name: Test REMSOL core library
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --lib
