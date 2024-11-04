@@ -1,0 +1,23 @@
+name: test
+on:
+  pull_request:
+  push:
+
+jobs:
+  test_python:
+    runs-on: ubuntu-latest
+    name: Test Python API
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+      - name: Test Python
+        run: uv run pytest test
+
+  test_cargo:
+    name: Test REMSOL core library
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --lib

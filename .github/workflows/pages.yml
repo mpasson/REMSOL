@@ -1,10 +1,10 @@
 name: build docs
+
 on:
-  pull_request:
   push:
-    branches:
-      - master
-      - doc-dev
+    tags:
+      - "*"
+
 jobs:
   build:
     runs-on: ubuntu-latest

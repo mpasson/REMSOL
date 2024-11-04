@@ -1,3 +1,4 @@
+//! This module contains the implementation of the `MultiLayer` struct and its methods.
 extern crate cumsum;
 extern crate find_peaks;
 extern crate itertools;
@@ -19,11 +20,18 @@ use cumsum::cumsum;
 use find_peaks::PeakFinder;
 use num_complex::Complex;
 
+/// Vacuum impedance.
 const Z0: Complex<f64> = Complex {
     re: 376.73031346177066,
     im: 0.0,
 };
 
+/// Integrates a function on sampled data using the trapezoidal rule.
+/// # Arguments
+/// * `y` - The y values of the function to integrate.
+/// * `x` - The x values of the function to integrate.
+/// # Returns
+/// The integral of the function.
 fn quadrature_integration<T, U>(y: Vec<T>, x: Vec<U>) -> T
 where
     T: Add<Output = T> + Sub<Output = T> + Mul<U, Output = T> + Sum + Copy,
@@ -41,32 +49,46 @@ where
     integral * dx
 }
 
-pub struct GridData {
-    pub xplot: Vec<f64>,
-    pub xstarts: Vec<f64>,
-    pub ixstarts: Vec<usize>,
+/// Struct representing the grid data used for plitting.
+struct GridData {
+    /// The x values of the grid.
+    xplot: Vec<f64>,
+    /// The x starting positions of the layers.
+    xstarts: Vec<f64>,
+    /// The indices of the x values where the layers start.
+    ixstarts: Vec<usize>,
 }
 
+/// Struct representing the field data of a mode.
+/// This is also available in the Python API.
 #[pyclass]
 #[allow(non_snake_case)]
 pub struct FieldData {
+    /// x coordinates of the field data.
     #[pyo3(get)]
     pub x: Vec<f64>,
+    /// Electric field in the x direction.
     #[pyo3(get)]
     pub Ex: Vec<Complex<f64>>,
+    /// Electric field in the y direction.
     #[pyo3(get)]
     pub Ey: Vec<Complex<f64>>,
+    /// Electric field in the z direction.
     #[pyo3(get)]
     pub Ez: Vec<Complex<f64>>,
+    /// Magnetic field in the x direction.
     #[pyo3(get)]
     pub Hx: Vec<Complex<f64>>,
+    /// Magnetic field in the y direction.
     #[pyo3(get)]
     pub Hy: Vec<Complex<f64>>,
+    /// Magnetic field in the z direction.
     #[pyo3(get)]
     pub Hz: Vec<Complex<f64>>,
 }
 
 impl FieldData {
+    /// Returns the z component of the Poynting vector of the field.
     pub fn get_poyinting_vector(&self) -> Complex<f64> {
         let poynting = self
             .Ex
@@ -78,7 +100,8 @@ impl FieldData {
         quadrature_integration(poynting, self.x.clone())
     }
 
-    pub fn normalize(&self) -> FieldData {
+    /// Normalizes the field data so that the absolute value of z component of the Poynting vector is 1.
+    pub fn normalize(self) -> FieldData {
         let poynting_vector = self.get_poyinting_vector();
         let norm = poynting_vector.sqrt();
         let ex = self.Ex.iter().map(|&x| x / norm).collect();
@@ -99,26 +122,40 @@ impl FieldData {
     }
 }
 
+/// Struct representing the index data of the multi-layer.
+/// This is also available in the Python API.
 #[pyclass]
 pub struct IndexData {
+    /// The x values of the index data.
     #[pyo3(get)]
     pub x: Vec<f64>,
+    /// The index of refraction of the multi-layer.
     #[pyo3(get)]
     pub n: Vec<f64>,
 }
 
+/// Calculates the field profile in a layer given the modal coefficients.
+/// # Arguments
+/// * `a` - The modal coefficient of the forward propagating wave.
+/// * `b` - The modal coefficient of the backward propagating wave.
+/// * `k0` - The vacuum wavevector.
+/// * `k` - The parallel wavevector.
+/// * `n` - The index of refraction.
+/// * `x` - The x coordinates inside the layer.
+/// # Returns
+/// The field profile in the layer.
 fn get_field_slice(
     a: Complex<f64>,
     b: Complex<f64>,
-    om: f64,
+    k0: f64,
     k: f64,
     n: f64,
     x: Vec<f64>,
 ) -> Vec<Complex<f64>> {
-    let om = num_complex::Complex::new(om, 0.0);
+    let k0 = num_complex::Complex::new(k0, 0.0);
     let k = num_complex::Complex::new(k, 0.0);
     let n = num_complex::Complex::new(n, 0.0);
-    let beta = ((om * n).powi(2) - k.powi(2)).sqrt();
+    let beta = ((k0 * n).powi(2) - k.powi(2)).sqrt();
     x.iter()
         .map(|x| {
             let z = num_complex::Complex::new(0.0, *x);
@@ -129,23 +166,34 @@ fn get_field_slice(
         .collect()
 }
 
+/// Structs repressenting the multilayer structure.
+/// Implements methods for calculating the modes and fields of the structure.
+/// This is also available in the Python API.
 #[pyclass]
 pub struct MultiLayer {
+    /// The layers of the multi-layer.
     layers: Vec<Layer>,
-    iteration: usize,
+    /// The backend used for the calculations.
     backend: BackEnd,
+    /// Number of significant digits requested for neff calculation.
     required_accuracy: i32,
+    /// The step size for plotting the field.
     #[pyo3(get, set)]
     pub plot_step: f64,
 }
 
+/// Methods of the MultiLayer struct also available in the Python API.
 #[pymethods]
 impl MultiLayer {
     #[new]
+    /// Creates a new MultiLayer struct.
+    /// # Arguments
+    /// * `layers` - The layers of the multi-layer.
+    /// # Returns
+    /// A new MultiLayer struct.
     pub fn new(layers: Vec<Layer>) -> MultiLayer {
         let mut multilayer = MultiLayer {
             layers,
-            iteration: 8,
             backend: BackEnd::Transfer,
             required_accuracy: 10,
             plot_step: 1e-3,
@@ -154,6 +202,15 @@ impl MultiLayer {
         multilayer
     }
 
+    /// Calculates neff of the requested mode.
+    /// # Arguments
+    /// * `omega` - The angular frequency of the mode.
+    /// * `polarization` - The polarization of the mode.
+    /// * `mode` - The mode number.
+    /// # Returns
+    /// The effective index of refraction of the mode.
+    /// # Errors
+    /// Returns an error if the mode is not found.
     #[pyo3(name = "neff")]
     #[pyo3(signature = (omega, polarization=None, mode=None))]
     pub fn python_neff(
@@ -170,16 +227,21 @@ impl MultiLayer {
         }
     }
 
+    /// Returs the index profile of the multi-layer.
     #[pyo3(name = "index")]
     pub fn python_index(&self) -> IndexData {
-        let grid_data = self.get_grid_data();
-        let index = self.get_index(&grid_data);
-        IndexData {
-            x: grid_data.xplot,
-            n: index,
-        }
+        self.index()
     }
 
+    /// Calculates the field profile of the requested mode.
+    /// # Arguments
+    /// * `omega` - The angular frequency of the mode.
+    /// * `polarization` - The polarization of the mode.
+    /// * `mode` - The mode number.
+    /// # Returns
+    /// The field profile of the mode.
+    /// # Errors
+    /// Returns an error if the mode is not found.
     #[pyo3(name = "field")]
     #[pyo3(signature = (omega, polarization=None, mode=None))]
     pub fn python_field(
@@ -198,14 +260,12 @@ impl MultiLayer {
 }
 
 impl MultiLayer {
+    /// Switches the backend used for the calculations.
     pub fn set_backend(&mut self, backend: BackEnd) {
         self.backend = backend;
     }
 
-    pub fn set_iteration(&mut self, iteration: usize) {
-        self.iteration = iteration;
-    }
-
+    /// Get the threshold for the findpeak function for a ginen number of significant digits.
     fn get_threshold(accuracy: i32) -> f64 {
         match accuracy {
             0..=2 => -2.0,
@@ -216,22 +276,43 @@ impl MultiLayer {
         }
     }
 
-    fn characteristic_function(&self, om: f64, k: f64, polarization: Polarization) -> Complex<f64> {
+    /// Function to maximize to find the mode.
+    /// # Arguments
+    /// * `k0` - The vacuum wavevector.
+    /// * `k` - The parallel wavevector.
+    /// * `polarization` - The polarization of the mode.
+    /// # Returns
+    /// The relevant figure of merit according to the backend.
+    fn characteristic_function(&self, k0: f64, k: f64, polarization: Polarization) -> Complex<f64> {
         match self.backend {
             BackEnd::Scattering => {
-                calculate_s_matrix(&self.layers, om, k, polarization).determinant()
+                calculate_s_matrix(&self.layers, k0, k, polarization).determinant()
             }
-            BackEnd::Transfer => 1.0 / calculate_t_matrix(&self.layers, om, k, polarization).t22,
+            BackEnd::Transfer => 1.0 / calculate_t_matrix(&self.layers, k0, k, polarization).t22,
         }
     }
 
+    /// Finds the minimum and maximum index of the multi-layer.
+    /// # Returns
+    /// The minimum and maximum index of the multi-layer.
     fn find_minmax_n(&self) -> (f64, f64) {
         find_minmax_n(&self.layers)
     }
 
+    /// Single step of the maximum finding process.
+    /// Given a certain k value, returns the k values corresponding to the peaks in the characteristic function./
+    /// # Arguments
+    /// * `k0` - The vacuum wavevector.
+    /// * `k_min` - The minimum parallel wavevector.
+    /// * `k_max` - The maximum parallel wavevector.
+    /// * `step` - The step size.
+    /// * `treshold` - The treshold for the peak finding.
+    /// * `polarization` - The polarization of the mode.
+    /// # Returns
+    /// The k values corresponding to the peaks in the characteristic function.
     fn solve_step(
         &self,
-        om: f64,
+        k0: f64,
         k_min: f64,
         k_max: f64,
         step: f64,
@@ -242,7 +323,7 @@ impl MultiLayer {
         let det: Vec<f64> = kv
             .iter()
             .map(|&k| {
-                self.characteristic_function(om, k, polarization)
+                self.characteristic_function(k0, k, polarization)
                     .norm()
                     .log10()
             })
@@ -254,10 +335,16 @@ impl MultiLayer {
         peaks.into_iter().map(|p| kv[p.middle_position()]).collect()
     }
 
-    pub fn solve(&self, om: f64, polarization: Polarization) -> Vec<f64> {
+    /// Finds the modes of the multi-layer.
+    /// # Arguments
+    /// * `k0` - The vacuum wavevector.
+    /// * `polarization` - The polarization of the mode.
+    /// # Returns
+    /// The effective indices of the modes.
+    pub fn solve(&self, k0: f64, polarization: Polarization) -> Vec<f64> {
         let (min_n, max_n) = self.find_minmax_n();
-        let k_min = om * min_n + 1e-9;
-        let k_max = om * max_n - 1e-9;
+        let k_min = k0 * min_n + 1e-9;
+        let k_max = k0 * max_n - 1e-9;
 
         let mut solution_backets = vec![(k_min, k_max)];
 
@@ -268,7 +355,7 @@ impl MultiLayer {
             let threshold = Self::get_threshold(accuracy);
             ksolutions.clear();
             for (_kmin, _kmax) in solution_backets {
-                let _solutions = self.solve_step(om, _kmin, _kmax, step, threshold, polarization);
+                let _solutions = self.solve_step(k0, _kmin, _kmax, step, threshold, polarization);
                 ksolutions.extend(_solutions);
             }
             solution_backets = ksolutions
@@ -277,16 +364,25 @@ impl MultiLayer {
                 .collect::<Vec<_>>();
         }
 
-        let mut n_solutions = ksolutions.into_iter().map(|k| k / om).collect::<Vec<_>>();
+        let mut n_solutions = ksolutions.into_iter().map(|k| k / k0).collect::<Vec<_>>();
 
         n_solutions.sort_by(|a, b| b.partial_cmp(a).unwrap_or_else(|| Ordering::Equal));
         n_solutions
     }
 
-    pub fn neff(&self, om: f64, polarization: Polarization, mode: usize) -> Result<f64, String> {
-        let n_solutions = self.solve(om, polarization);
+    /// Finds the effective index of a mode.
+    /// # Arguments
+    /// * `k0` - The vacuum wavevector.
+    /// * `polarization` - The polarization of the mode.
+    /// * `mode` - The mode to find.
+    /// # Returns
+    /// The effective index of the mode.
+    /// # Errors
+    /// If the mode is not found.
+    pub fn neff(&self, k0: f64, polarization: Polarization, mode: usize) -> Result<f64, String> {
+        let n_solutions = self.solve(k0, polarization);
         match n_solutions.get(mode) {
-            Some(n) => Ok(*n),
+            Some(&n) => Ok(n),
             None => Err(format!(
                 "Mode {} not found. Only {} modes (0->{}) available.",
                 mode,
@@ -296,9 +392,18 @@ impl MultiLayer {
         }
     }
 
+    /// Calculates the modal coefficients of each layer given the starting coefficients.
+    /// # Arguments
+    /// * `k0` - The vacuum wavevector.
+    /// * `k` - The parallel wavevector.
+    /// * `polarization` - The polarization of the mode.
+    /// * `a` - In case of transfer matrix method, the forward coefficient of the first layer. Scattering matrix method not implemented yet..
+    /// * `b` - In case of transfer matrix method, the backward coefficient of the first layer. Scattering matrix method not implemented yet..
+    /// # Returns
+    /// The modal coefficients of each layer.
     pub fn get_propagation_coefficients(
         &self,
-        om: f64,
+        k0: f64,
         k: f64,
         polarization: Polarization,
         a: Complex<f64>,
@@ -306,7 +411,7 @@ impl MultiLayer {
     ) -> Vec<LayerCoefficientVector> {
         match self.backend {
             BackEnd::Transfer => {
-                get_propagation_coefficients_transfer(&self.layers, om, k, polarization, a, b)
+                get_propagation_coefficients_transfer(&self.layers, k0, k, polarization, a, b)
             }
             BackEnd::Scattering => {
                 panic!("Not implemented yet")
@@ -314,7 +419,8 @@ impl MultiLayer {
         }
     }
 
-    pub fn get_grid_data(&self) -> GridData {
+    /// Calculates the plotting grid data for the multilayer.
+    fn get_grid_data(&self) -> GridData {
         let xstart = -self.layers[0].d;
         let xend = self.layers.iter().map(|l| l.d).sum::<f64>() + xstart;
         let xgrid: Vec<f64> = iter_num_tools::arange(xstart..xend, self.plot_step).collect();
@@ -342,11 +448,19 @@ impl MultiLayer {
         }
     }
 
+    /// Calculates the profile of a single field component given the modal coefficients of all the layers.
+    /// # Arguments
+    /// * `coefficient_vector` - The modal coefficients of each layer.
+    /// * `grid_data` - The grid data for the multilayer.
+    /// * `k0` - The vacuum wavevector.
+    /// * `k` - The parallel wavevector.
+    /// # Returns
+    /// The field component profile.
     fn get_field_componet(
         &self,
         coefficient_vector: &Vec<LayerCoefficientVector>,
         grid_data: &GridData,
-        om: f64,
+        k0: f64,
         k: f64,
     ) -> Vec<Complex<f64>> {
         let x = grid_data.xplot.clone();
@@ -368,7 +482,7 @@ impl MultiLayer {
             field_vectors.extend(get_field_slice(
                 coefficients.a,
                 coefficients.b,
-                om,
+                k0,
                 k,
                 layer.n,
                 xslice,
@@ -377,9 +491,16 @@ impl MultiLayer {
         field_vectors
     }
 
+    /// Calculates the modla coefficients for all field components.
+    /// # Arguments
+    /// * `k0` - The vacuum wavevector.
+    /// * `k` - The parallel wavevector.
+    /// * `main_coefficients` - The modal coefficients of the main field component.
+    /// # Returns
+    /// The modal coefficients of all field components.
     pub fn get_coefficient_all_components(
         &self,
-        om: f64,
+        k0: f64,
         k: f64,
         main_coefficients: Vec<LayerCoefficientVector>,
     ) -> (
@@ -391,7 +512,7 @@ impl MultiLayer {
         Vec<LayerCoefficientVector>,
     ) {
         let main1 = main_coefficients;
-        let om = Complex::new(om, 0.0);
+        let k0 = Complex::new(k0, 0.0);
         let k = Complex::new(k, 0.0);
         let mut main2 = Vec::new();
         let mut main3 = Vec::new();
@@ -402,42 +523,52 @@ impl MultiLayer {
             self.layers.len()
         ];
         for (layer, coefficients) in zip(self.layers.iter(), main1.iter()) {
-            let kpar = ((layer.n * om).powi(2) - k.powi(2)).sqrt();
+            let kpar = ((layer.n * k0).powi(2) - k.powi(2)).sqrt();
             let n = Complex::new(layer.n, 0.0);
             main2.push(LayerCoefficientVector::new(
                 -coefficients.a * k / kpar,
                 coefficients.b * k / kpar,
             ));
             main3.push(LayerCoefficientVector::new(
-                -coefficients.a * om * n.powi(2) / kpar,
-                coefficients.b * om * n.powi(2) / kpar,
+                -coefficients.a * k0 * n.powi(2) / kpar,
+                coefficients.b * k0 * n.powi(2) / kpar,
             ));
             maink.push(LayerCoefficientVector::new(
-                coefficients.a * kpar / om,
-                -coefficients.b * kpar / om,
+                coefficients.a * kpar / k0,
+                -coefficients.b * kpar / k0,
             ));
             mainb.push(LayerCoefficientVector::new(
-                -coefficients.a * k / om,
-                -coefficients.b * k / om,
+                -coefficients.a * k / k0,
+                -coefficients.b * k / k0,
             ));
         }
         (main1, main2, main3, maink, mainb, zeros)
     }
 
+    /// Calculates the field profile of the requested mode.
+    /// # Arguments
+    /// * `k0` - The vacuum wavevector.
+    /// * `k` - The parallel wavevector.
+    /// * `mode` - The mode number.
+    /// * `polarization` - The polarization of the mode.
+    /// # Returns
+    /// The field profile of the requested mode.
+    /// # Errors
+    /// Returns an error if the requested mode is not found.
     pub fn field(
         &self,
-        om: f64,
+        k0: f64,
         polarization: Polarization,
         mode: usize,
     ) -> Result<FieldData, String> {
-        let neff = match self.neff(om, polarization, mode) {
+        let neff = match self.neff(k0, polarization, mode) {
             Ok(n) => n,
             Err(e) => return Err(e),
         };
 
         let mut coefficient_vector = self.get_propagation_coefficients(
-            om,
-            om * neff,
+            k0,
+            k0 * neff,
             polarization,
             Complex::new(0.0, 0.0),
             Complex::new(1.0, 0.0),
@@ -450,16 +581,16 @@ impl MultiLayer {
             b: Complex::new(0.0, 0.0),
         });
 
-        let coefficients = self.get_coefficient_all_components(om, om * neff, coefficient_vector);
+        let coefficients = self.get_coefficient_all_components(k0, k0 * neff, coefficient_vector);
 
         let (main1, main2, main3, maink, mainb, zeros) = coefficients;
-        let field1 = self.get_field_componet(&main1, &grid_data, om, om * neff);
-        let fieldzeros = self.get_field_componet(&zeros, &grid_data, om, om * neff);
+        let field1 = self.get_field_componet(&main1, &grid_data, k0, k0 * neff);
+        let fieldzeros = self.get_field_componet(&zeros, &grid_data, k0, k0 * neff);
 
         let field_data = match polarization {
             Polarization::TE => {
-                let fieldk = self.get_field_componet(&maink, &grid_data, om, om * neff);
-                let fieldb = self.get_field_componet(&mainb, &grid_data, om, om * neff);
+                let fieldk = self.get_field_componet(&maink, &grid_data, k0, k0 * neff);
+                let fieldb = self.get_field_componet(&mainb, &grid_data, k0, k0 * neff);
 
                 FieldData {
                     x: grid_data.xplot.clone(),
@@ -472,8 +603,8 @@ impl MultiLayer {
                 }
             }
             Polarization::TM => {
-                let field2 = self.get_field_componet(&main2, &grid_data, om, om * neff);
-                let field3 = self.get_field_componet(&main3, &grid_data, om, om * neff);
+                let field2 = self.get_field_componet(&main2, &grid_data, k0, k0 * neff);
+                let field3 = self.get_field_componet(&main3, &grid_data, k0, k0 * neff);
                 FieldData {
                     x: grid_data.xplot.clone(),
                     Ex: field2,
@@ -489,7 +620,8 @@ impl MultiLayer {
         Ok(field_data.normalize())
     }
 
-    pub fn get_index(&self, grid_data: &GridData) -> Vec<f64> {
+    /// Calculates index profile of the multilayer from a grid data object.
+    fn get_index(&self, grid_data: &GridData) -> Vec<f64> {
         let xgrid = grid_data.xplot.clone();
         let mut n = vec![self.layers[0].n; xgrid.len()];
         for (i, layer) in self.layers.iter().enumerate() {
@@ -499,9 +631,20 @@ impl MultiLayer {
         }
         n
     }
+
+    /// Calcultes the refractive index profile of the multilayer.
+    pub fn index(&self) -> IndexData {
+        let grid_data = self.get_grid_data();
+        let index = self.get_index(&grid_data);
+        IndexData {
+            x: grid_data.xplot.clone(),
+            n: index,
+        }
+    }
 }
 
-pub fn find_minmax_n(layers: &Vec<Layer>) -> (f64, f64) {
+/// Calculates the minimum and maximum refractive index of a list of layers.
+fn find_minmax_n(layers: &Vec<Layer>) -> (f64, f64) {
     let mut min_n = layers[0].n;
     let mut max_n = layers[0].n;
     for layer in layers.iter() {
