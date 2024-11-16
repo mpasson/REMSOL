@@ -158,7 +158,7 @@ impl ScatteringMatrix {
 /// # Returns
 /// The scattering matrix for the multilayer system.
 pub fn calculate_s_matrix(
-    layers: &Vec<Layer>,
+    layers: &[Layer],
     k0: f64,
     k: f64,
     polarization: Polarization,

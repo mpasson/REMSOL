@@ -162,7 +162,7 @@ impl TransferMatrix {
 /// # Returns:
 /// The transfer matrix of the system.
 pub fn calculate_t_matrix(
-    layers: &Vec<Layer>,
+    layers: &[Layer],
     k0: f64,
     k: f64,
     polarization: Polarization,
@@ -189,7 +189,7 @@ pub fn calculate_t_matrix(
 /// # Returns:
 /// The modal coefficients in each layer of the system.
 pub fn get_propagation_coefficients_transfer(
-    layers: &Vec<Layer>,
+    layers: &[Layer],
     k0: f64,
     k: f64,
     polarization: Polarization,
