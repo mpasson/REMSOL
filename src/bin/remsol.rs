@@ -65,15 +65,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let multilayer = MultiLayer::new(settings.layers);
 
-    match (cli.k0, cli.mode, cli.polarization) {
-        (Some(k0), Some(mode), Some(polarization)) => {
-            settings.runs.push(RunSettings {
-                k0,
-                mode,
-                polarization,
-            });
-        }
-        _ => (),
+    if let (Some(k0), Some(mode), Some(polarization)) = (cli.k0, cli.mode, cli.polarization) {
+        settings.runs.push(RunSettings {
+            k0,
+            mode,
+            polarization,
+        });
     }
 
     for run in settings.runs {

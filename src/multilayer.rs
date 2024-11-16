@@ -32,21 +32,22 @@ const Z0: Complex<f64> = Complex {
 /// * `x` - The x values of the function to integrate.
 /// # Returns
 /// The integral of the function.
-fn quadrature_integration<T, U>(y: Vec<T>, x: Vec<U>) -> T
+fn quadrature_integration<T, U>(y: &[T], x: &[U]) -> Result<T, &'static str>
 where
     T: Add<Output = T> + Sub<Output = T> + Mul<U, Output = T> + Sum + Copy,
     U: Add<Output = U> + Sub<Output = U> + Copy,
 {
-    let n = y.len();
-    let n2 = x.len();
-    if n != n2 {
-        panic!("The length of the input vectors must be the same")
+    if y.len() != x.len() {
+        return Err("The length of the input vectors must be the same");
     }
-    let correction = y.last().unwrap().clone() + y.first().unwrap().clone();
+    let correction = match (y.last(), y.first()) {
+        (Some(&last), Some(&first)) => last + first,
+        _ => return Err("The input vectors must not be empty"),
+    };
     let dx = x[1] - x[0];
-    let sum: T = y.into_iter().sum();
+    let sum: T = y.iter().copied().sum();
     let integral = sum - correction;
-    integral * dx
+    Ok(integral * dx)
 }
 
 /// Struct representing the grid data used for plitting.
@@ -90,28 +91,28 @@ pub struct FieldData {
 impl FieldData {
     /// Returns the z component of the Poynting vector of the field.
     pub fn get_poyinting_vector(&self) -> Complex<f64> {
-        let poynting = self
+        let poynting: Vec<Complex<f64>> = self
             .Ex
             .iter()
             .zip(self.Hy.iter())
             .zip(self.Ey.iter().zip(self.Hx.iter()))
             .map(|((&ex, &hy), (&ey, &hx))| ex * hy.conj() - ey * hx.conj())
             .collect();
-        quadrature_integration(poynting, self.x.clone())
+        quadrature_integration(&poynting, &self.x).unwrap()
     }
 
     /// Normalizes the field data so that the absolute value of z component of the Poynting vector is 1.
     pub fn normalize(self) -> FieldData {
         let poynting_vector = self.get_poyinting_vector();
         let norm = poynting_vector.sqrt();
-        let ex = self.Ex.iter().map(|&x| x / norm).collect();
-        let ey = self.Ey.iter().map(|&x| x / norm).collect();
-        let ez = self.Ez.iter().map(|&x| x / norm).collect();
-        let hx = self.Hx.iter().map(|&x| x / norm).collect();
-        let hy = self.Hy.iter().map(|&x| x / norm).collect();
-        let hz = self.Hz.iter().map(|&x| x / norm).collect();
+        let ex = self.Ex.into_iter().map(|x| x / norm).collect();
+        let ey = self.Ey.into_iter().map(|x| x / norm).collect();
+        let ez = self.Ez.into_iter().map(|x| x / norm).collect();
+        let hx = self.Hx.into_iter().map(|x| x / norm).collect();
+        let hy = self.Hy.into_iter().map(|x| x / norm).collect();
+        let hz = self.Hz.into_iter().map(|x| x / norm).collect();
         FieldData {
-            x: self.x.clone(),
+            x: self.x,
             Ex: ex,
             Ey: ey,
             Ez: ez,
@@ -165,6 +166,15 @@ fn get_field_slice(
         })
         .collect()
 }
+
+type FullLayerCoefficientVector = (
+    Vec<LayerCoefficientVector>,
+    Vec<LayerCoefficientVector>,
+    Vec<LayerCoefficientVector>,
+    Vec<LayerCoefficientVector>,
+    Vec<LayerCoefficientVector>,
+    Vec<LayerCoefficientVector>,
+);
 
 /// Structs repressenting the multilayer structure.
 /// Implements methods for calculating the modes and fields of the structure.
@@ -366,7 +376,7 @@ impl MultiLayer {
 
         let mut n_solutions = ksolutions.into_iter().map(|k| k / k0).collect::<Vec<_>>();
 
-        n_solutions.sort_by(|a, b| b.partial_cmp(a).unwrap_or_else(|| Ordering::Equal));
+        n_solutions.sort_by(|a, b| b.partial_cmp(a).unwrap_or(Ordering::Equal));
         n_solutions
     }
 
@@ -458,7 +468,7 @@ impl MultiLayer {
     /// The field component profile.
     fn get_field_componet(
         &self,
-        coefficient_vector: &Vec<LayerCoefficientVector>,
+        coefficient_vector: &[LayerCoefficientVector],
         grid_data: &GridData,
         k0: f64,
         k: f64,
@@ -503,14 +513,7 @@ impl MultiLayer {
         k0: f64,
         k: f64,
         main_coefficients: Vec<LayerCoefficientVector>,
-    ) -> (
-        Vec<LayerCoefficientVector>,
-        Vec<LayerCoefficientVector>,
-        Vec<LayerCoefficientVector>,
-        Vec<LayerCoefficientVector>,
-        Vec<LayerCoefficientVector>,
-        Vec<LayerCoefficientVector>,
-    ) {
+    ) -> FullLayerCoefficientVector {
         let main1 = main_coefficients;
         let k0 = Complex::new(k0, 0.0);
         let k = Complex::new(k, 0.0);
@@ -644,7 +647,7 @@ impl MultiLayer {
 }
 
 /// Calculates the minimum and maximum refractive index of a list of layers.
-fn find_minmax_n(layers: &Vec<Layer>) -> (f64, f64) {
+fn find_minmax_n(layers: &[Layer]) -> (f64, f64) {
     let mut min_n = layers[0].n;
     let mut max_n = layers[0].n;
     for layer in layers.iter() {
