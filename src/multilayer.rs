@@ -222,7 +222,16 @@ impl MultiLayer {
         }
     }
 
-    fn characteristic_function(&self, om: f64, k: f64, polarization: Polarization) -> Complex<f64> {
+    pub fn characteristic_function<T, U>(
+        &self,
+        om: T,
+        k: U,
+        polarization: Polarization,
+    ) -> Complex<f64>
+    where
+        T: Into<Complex<f64>> + Copy,
+        U: Into<Complex<f64>> + Copy,
+    {
         match self.backend {
             BackEnd::Scattering => {
                 calculate_s_matrix(&self.layers, om, k, polarization).determinant()
