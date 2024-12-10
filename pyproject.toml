@@ -24,4 +24,5 @@ dev-dependencies = [
     "nbstripout>=0.7.1",
     "numpy>=2.1.2",
     "pytest>=8.3.3",
+    "python-semantic-release>=9.15.1",
 ]

@@ -1,3 +1,4 @@
+# %%
 import numpy as np
 import pytest as pt
 import remsol
@@ -25,6 +26,7 @@ coupled_slab = remsol.MultiLayer(
 om = 2.0 * np.pi / 1.55
 
 
+# %%
 def test_slab():
     assert slab.neff(om, pol.TE, 0) == pt.approx(1.804297363)
     assert slab.neff(om, pol.TE, 1) == pt.approx(1.191174978)
