@@ -22,6 +22,15 @@ coupled_slab = remsol.MultiLayer(
     ]
 )
 
+asymmetric_coupled_slab = remsol.MultiLayer(
+    [
+        remsol.Layer(1.0, 2.0),
+        remsol.Layer(1.51, 5.0),
+        remsol.Layer(1.5, 2.0),
+        remsol.Layer(2.0, 0.03),
+        remsol.Layer(1.5, 2.0),
+    ]
+)
 
 om = 2.0 * np.pi / 1.55
 
@@ -46,6 +55,14 @@ def test_coupled_slab():
     assert coupled_slab.neff(om, pol.TM, 3) == pt.approx(1.019866805)
 
 
+def test_asymmetric_coupled_slab():
+    assert asymmetric_coupled_slab.neff(om, pol.TE, 0) == pt.approx(1.50648353)
+    assert asymmetric_coupled_slab.neff(om, pol.TE, 1) == pt.approx(1.50216560)
+
+    assert asymmetric_coupled_slab.neff(om, pol.TM, 0) == pt.approx(1.50575211)
+    assert asymmetric_coupled_slab.neff(om, pol.TM, 1) == pt.approx(1.50019654)
+
+
 if __name__ == "__main__":
     from time import time
 
@@ -66,5 +83,11 @@ if __name__ == "__main__":
             self.end = time()
 
     with Timer() as t:
-        print(coupled_slab.neff(om, pol.TE, 2))
+        print(slab.neff(om, pol.TE, 0))
     print(t.elapsed)
+
+    # mode = 2
+    # print(asymmetric_coupled_slab.neff(om, pol.TE, mode))
+    # field = asymmetric_coupled_slab.field(om, pol.TE, mode)
+    # plt.plot(field.x, np.real(field.Ey))
+    # plt.show()

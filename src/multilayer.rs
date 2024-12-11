@@ -205,7 +205,7 @@ impl MultiLayer {
         let mut multilayer = MultiLayer {
             layers,
             backend: BackEnd::Transfer,
-            required_accuracy: 10,
+            required_accuracy: 12,
             plot_step: 1e-3,
         };
         multilayer.set_backend(BackEnd::Transfer);
@@ -340,7 +340,7 @@ impl MultiLayer {
             .collect();
 
         let mut peak_finder = PeakFinder::new(&det);
-        let peaks = peak_finder.with_min_height(treshold).find_peaks();
+        let peaks = peak_finder.with_min_prominence(0.8).find_peaks();
 
         peaks.into_iter().map(|p| kv[p.middle_position()]).collect()
     }
@@ -365,7 +365,8 @@ impl MultiLayer {
             let threshold = Self::get_threshold(accuracy);
             ksolutions.clear();
             for (_kmin, _kmax) in solution_backets {
-                let _solutions = self.solve_step(k0, _kmin, _kmax, step, threshold, polarization);
+                let _solutions =
+                    self.solve_step(k0, _kmin, _kmax, 0.1 * step, threshold, polarization);
                 ksolutions.extend(_solutions);
             }
             solution_backets = ksolutions
@@ -725,6 +726,17 @@ mod tests {
         MultiLayer::new(layers)
     }
 
+    fn create_asymmetric_coupled_slab_multilayer() -> MultiLayer {
+        let layers: Vec<Layer> = vec![
+            Layer::new(1.0, 1.0),
+            Layer::new(1.51, 5.0),
+            Layer::new(1.5, 2.0),
+            Layer::new(2.0, 0.03),
+            Layer::new(1.5, 1.0),
+        ];
+        MultiLayer::new(layers)
+    }
+
     #[test]
     fn test_scattering_slab_te() {
         let mut multi_layer = create_slab_multilayer();
@@ -810,6 +822,28 @@ mod tests {
 
         let neff = multi_layer.solve(om, Polarization::TM);
         let expected_neff = vec![1.657019473, 1.657015474, 1.035192425, 1.019866805];
+        assert_vec_approx_equal(&neff, &expected_neff, 1e-9);
+    }
+
+    #[test]
+    fn test_transfer_asymmetric_coupled_slab_te() {
+        let mut multi_layer = create_asymmetric_coupled_slab_multilayer();
+        let om = 2.0 * PI / 1.55;
+        multi_layer.set_backend(BackEnd::Transfer);
+
+        let neff = multi_layer.solve(om, Polarization::TE);
+        let expected_neff = vec![1.506483533, 1.502165605];
+        assert_vec_approx_equal(&neff, &expected_neff, 1e-9);
+    }
+
+    #[test]
+    fn test_transfer_asymmetric_coupled_slab_tm() {
+        let mut multi_layer = create_asymmetric_coupled_slab_multilayer();
+        let om = 2.0 * PI / 1.55;
+        multi_layer.set_backend(BackEnd::Transfer);
+
+        let neff = multi_layer.solve(om, Polarization::TM);
+        let expected_neff = vec![1.505752112, 1.500196545];
         assert_vec_approx_equal(&neff, &expected_neff, 1e-9);
     }
 
