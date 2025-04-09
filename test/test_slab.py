@@ -63,6 +63,10 @@ def test_asymmetric_coupled_slab():
     assert asymmetric_coupled_slab.neff(om, pol.TM, 1) == pt.approx(1.50019654)
 
 
+def test_performance(benchmark):
+    benchmark(test_slab)
+
+
 if __name__ == "__main__":
     from time import time
 

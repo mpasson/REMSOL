@@ -23,6 +23,7 @@ dev-dependencies = [
     "matplotlib>=3.9.2",
     "nbstripout>=0.7.1",
     "numpy>=2.1.2",
+    "pytest-benchmark[histogram]>=5.1.0",
     "pytest>=8.3.3",
     "python-semantic-release>=9.15.1",
 ]
