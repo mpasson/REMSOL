@@ -27,3 +27,8 @@ dev-dependencies = [
     "pytest>=8.3.3",
     "python-semantic-release>=9.15.1",
 ]
+
+[tool.semantic_release]
+version_toml = [
+    "Cargo.toml:package.version"
+]
