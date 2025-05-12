@@ -1,6 +1,17 @@
 # CHANGELOG
 
 
+## v0.1.3 (2025-05-12)
+
+### Build System
+
+- Added maturin to development dependencies
+  ([`5e58e2b`](https://github.com/mpasson/REMSOL/commit/5e58e2ba989e84374195934ad13eed6993352293))
+
+- Updated rust dependencies
+  ([`bc69660`](https://github.com/mpasson/REMSOL/commit/bc69660e463bd253d5151a3b8e6d8817e995bd1a))
+
+
 ## v0.1.2 (2025-05-12)
 
 ### Bug Fixes
