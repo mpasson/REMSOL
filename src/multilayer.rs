@@ -205,7 +205,7 @@ impl MultiLayer {
         let mut multilayer = MultiLayer {
             layers,
             backend: BackEnd::Transfer,
-            required_accuracy: 12,
+            required_accuracy: 10,
             plot_step: 1e-3,
         };
         multilayer.set_backend(BackEnd::Transfer);
