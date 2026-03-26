@@ -1,0 +1,25 @@
+{
+  "context_servers": {
+    // "github": {
+    //   "command": {
+    //     "path": "npx",
+    //     "args": ["-y", "@modelcontextprotocol/server-github"],
+    //     "env": {
+    //       "GITHUB_PERSONAL_ACCESS_TOKEN": "$GITHUB_TOKEN",
+    //     },
+    //   },
+    // },
+    "fetch": {
+      "command": {
+        "path": "uvx",
+        "args": ["mcp-server-fetch"],
+      },
+    },
+    "memory": {
+      "command": {
+        "path": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-memory"],
+      },
+    },
+  },
+}
