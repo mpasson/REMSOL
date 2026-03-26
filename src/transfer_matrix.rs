@@ -151,6 +151,12 @@ impl TransferMatrix {
             b: self.t21 * coefficient_vector.a + self.t22 * coefficient_vector.b,
         }
     }
+
+    /// Applies the transfer matrix to an input vector (a, b) and returns the output (a_out, b_out).
+    /// This is used to evaluate mode conditions for non-standard boundary cases.
+    pub fn apply(&self, a: Complex<f64>, b: Complex<f64>) -> (Complex<f64>, Complex<f64>) {
+        (self.t11 * a + self.t12 * b, self.t21 * a + self.t22 * b)
+    }
 }
 
 /// Calculates the transfer matrix of a multilayer system.

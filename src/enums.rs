@@ -27,3 +27,13 @@ pub enum Polarization {
     /// TM polarization.
     TM,
 }
+
+/// Enum for choosing the boundary condition at the edges of the multilayer stack.
+#[pyclass]
+#[derive(Copy, Clone, Debug)]
+pub enum BoundaryCondition {
+    /// Semi-infinite boundary condition: the field decays exponentially into the cladding.
+    SemiInfinite,
+    /// Perfect Electric Conductor (PEC) boundary condition: the tangential electric field vanishes at the boundary.
+    PEC,
+}
