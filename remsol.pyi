@@ -77,8 +77,20 @@ class FieldData:
     Hz: list[complex]
     """The magnetic field values in the z direction."""
 
+class IndexData:
+    """A class representing the refractive index profile of a multilayer structure."""
+
+    x: list[float]
+    """The x coordinates of the index profile."""
+
+    n: list[float]
+    """The refractive index values at each x coordinate."""
+
 class MultiLayer:
     """A class representing a multilayer structure."""
+
+    plot_step: float
+    """Step size used when sampling the field and index profiles (default: 1e-3)."""
 
     def __init__(self, layers: list[Layer | PEC]) -> None:
         """Create a new multilayer structure from a list of layers.
@@ -119,7 +131,7 @@ class MultiLayer:
 
     def neff(
         self, omega: float, polarization: Polarization = Polarization.TE, mode: int = 0
-    ) -> float:
+    ) -> float | None:
         """Calculate the effective index of refraction for a given mode and polarization.
 
         Args:
@@ -128,7 +140,21 @@ class MultiLayer:
             mode: The mode number of the light.
 
         Returns:
-            The effective index of refraction for the given parameters.
+            The effective index of refraction for the given parameters, or ``None``
+            if the requested mode number exceeds the number of supported modes.
+        """
+
+    def all_neff(
+        self, omega: float, polarization: Polarization = Polarization.TE
+    ) -> list[float]:
+        """Return all effective indices supported by the structure for a given polarization.
+
+        Args:
+            omega: The angular frequency of the light.
+            polarization: The polarization of the light (TE or TM).
+
+        Returns:
+            A list of effective indices sorted from highest to lowest.
         """
 
     def field(
@@ -142,5 +168,15 @@ class MultiLayer:
             mode: The mode number of the light.
 
         Returns:
-            A FieldData object containing the field data for the given parameters.
+            A ``FieldData`` object containing the field data for the given parameters.
+            If the requested mode number exceeds the number of supported modes, a
+            ``FieldData`` with all field components set to zero is returned instead.
+        """
+
+    def index(self) -> IndexData:
+        """Return the refractive index profile of the multilayer structure.
+
+        Returns:
+            An ``IndexData`` object containing the x coordinates and refractive
+            index values sampled at the current ``plot_step``.
         """

@@ -4,7 +4,6 @@ extern crate find_peaks;
 extern crate itertools;
 
 use num_complex::Complex64;
-use pyo3::exceptions::PyException;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use std::cmp::Ordering;
@@ -95,6 +94,21 @@ pub struct FieldData {
 }
 
 impl FieldData {
+    /// Creates a zeroed FieldData (all field components set to zero) for a given x grid.
+    /// Used as a safe fallback when a requested mode does not exist.
+    pub fn zeros(x: Vec<f64>) -> FieldData {
+        let n = x.len();
+        FieldData {
+            x,
+            Ex: vec![Complex::new(0.0, 0.0); n],
+            Ey: vec![Complex::new(0.0, 0.0); n],
+            Ez: vec![Complex::new(0.0, 0.0); n],
+            Hx: vec![Complex::new(0.0, 0.0); n],
+            Hy: vec![Complex::new(0.0, 0.0); n],
+            Hz: vec![Complex::new(0.0, 0.0); n],
+        }
+    }
+
     /// Returns the z component of the Poynting vector of the field.
     pub fn get_poyinting_vector(&self) -> Complex<f64> {
         let poynting: Vec<Complex<f64>> = self
@@ -282,9 +296,7 @@ impl MultiLayer {
     /// * `polarization` - The polarization of the mode.
     /// * `mode` - The mode number.
     /// # Returns
-    /// The effective index of refraction of the mode.
-    /// # Errors
-    /// Returns an error if the mode is not found.
+    /// The effective index of refraction of the mode, or None if the mode does not exist.
     #[pyo3(name = "neff")]
     #[pyo3(signature = (omega, polarization=None, mode=None))]
     pub fn python_neff(
@@ -292,13 +304,23 @@ impl MultiLayer {
         omega: f64,
         polarization: Option<Polarization>,
         mode: Option<usize>,
-    ) -> PyResult<f64> {
+    ) -> Option<f64> {
         let polarization = polarization.unwrap_or(Polarization::TE);
         let mode = mode.unwrap_or(0);
-        match self.neff(omega, polarization, mode) {
-            Ok(neff) => Ok(neff),
-            Err(err) => Err(PyException::new_err(err)),
-        }
+        self.neff(omega, polarization, mode).ok()
+    }
+
+    /// Returns all effective indices supported by the structure.
+    /// # Arguments
+    /// * `omega` - The angular frequency.
+    /// * `polarization` - The polarization of the modes.
+    /// # Returns
+    /// A list of effective indices, sorted from highest to lowest.
+    #[pyo3(name = "all_neff")]
+    #[pyo3(signature = (omega, polarization=None))]
+    pub fn python_all_neff(&self, omega: f64, polarization: Option<Polarization>) -> Vec<f64> {
+        let polarization = polarization.unwrap_or(Polarization::TE);
+        self.solve(omega, polarization)
     }
 
     /// Returs the index profile of the multi-layer.
@@ -313,9 +335,7 @@ impl MultiLayer {
     /// * `polarization` - The polarization of the mode.
     /// * `mode` - The mode number.
     /// # Returns
-    /// The field profile of the mode.
-    /// # Errors
-    /// Returns an error if the mode is not found.
+    /// The field profile of the mode, or a zeroed FieldData if the mode does not exist.
     #[pyo3(name = "field")]
     #[pyo3(signature = (omega, polarization=None, mode=None))]
     pub fn python_field(
@@ -323,13 +343,11 @@ impl MultiLayer {
         omega: f64,
         polarization: Option<Polarization>,
         mode: Option<usize>,
-    ) -> PyResult<FieldData> {
+    ) -> FieldData {
         let polarization = polarization.unwrap_or(Polarization::TE);
         let mode = mode.unwrap_or(0);
-        match self.field(omega, polarization, mode) {
-            Ok(field_data) => Ok(field_data),
-            Err(err) => Err(PyException::new_err(err)),
-        }
+        self.field(omega, polarization, mode)
+            .unwrap_or_else(|_| FieldData::zeros(self.get_grid_data().xplot))
     }
 }
 
@@ -382,41 +400,45 @@ impl MultiLayer {
                 calculate_s_matrix(&self.layers, k0, k, polarization).determinant()
             }
             BackEnd::Transfer => {
-                let t_std = calculate_t_matrix(&self.layers, k0, k, polarization);
+                let t = calculate_t_matrix(&self.layers, k0, k, polarization);
                 match (self.left_bc, self.right_bc) {
                     (BoundaryCondition::SemiInfinite, BoundaryCondition::SemiInfinite) => {
-                        // Standard case: mode condition t22 = 0
-                        1.0 / t_std.t22
+                        // Starting from (0, 1) in the left cladding, b_out = T[1,1] · 1.
+                        // Mode condition: b_out = 0  →  t22 = 0.
+                        1.0 / t.t22
                     }
                     (BoundaryCondition::PEC, BoundaryCondition::SemiInfinite) => {
-                        // T_PEC_L = T_std · T_prop(layers[0])
-                        // Sequence: (1,-1) at PEC wall → propagate through L0 → cross into cladding
-                        // In matrix form: T_std · T_prop(L0), i.e. T_prop applied first (rightmost)
-                        // Mode condition: b component in right cladding = 0
+                        // PEC wall at the left edge of layers[0].
+                        // Initial condition: (a, b) = (1, −1) so that the tangential E is
+                        // zero at x = 0 (TE: Ey = a + b = 0; TM: Ez = a + b = 0).
+                        // Propagate forward through layers[0], then through the rest via T.
+                        // Full matrix: T · T_prop(L0).
+                        // Mode condition: b_out = 0  (no growing wave in right cladding).
                         let prop = TransferMatrix::matrix_propagation(
                             self.layers[0].n,
                             self.layers[0].d,
                             k0,
                             k,
                         );
-                        let t = t_std.compose(prop);
-                        let (_, b_out) = t.apply(Complex::new(1.0, 0.0), Complex::new(-1.0, 0.0));
+                        let t_full = t.compose(prop);
+                        let (_, b_out) =
+                            t_full.apply(Complex::new(1.0, 0.0), Complex::new(-1.0, 0.0));
                         1.0 / b_out
                     }
                     (BoundaryCondition::SemiInfinite, BoundaryCondition::PEC) => {
-                        // T_PEC_R = T_prop(layers[last]) · T_std
-                        // Sequence: (0,1) in left cladding → T_std to left edge of last layer → propagate to PEC wall
-                        // In matrix form: T_prop(L_N) · T_std, i.e. T_std applied first (rightmost)
-                        // Mode condition: field = 0 at PEC wall → a_out + b_out = 0
+                        // PEC wall at the right edge of layers[last].
+                        // Initial condition: (0, 1) in the left semi-infinite cladding.
+                        // Propagate forward to the PEC wall via T_prop(L_last) · T.
+                        // Mode condition: a_out + b_out = 0  (tangential E = 0 at PEC wall).
                         let last = self.layers.last().unwrap();
                         let prop = TransferMatrix::matrix_propagation(last.n, last.d, k0, k);
-                        let t = prop.compose(t_std);
+                        let t_full = prop.compose(t);
                         let (a_out, b_out) =
-                            t.apply(Complex::new(0.0, 0.0), Complex::new(1.0, 0.0));
+                            t_full.apply(Complex::new(0.0, 0.0), Complex::new(1.0, 0.0));
                         1.0 / (a_out + b_out)
                     }
                     (BoundaryCondition::PEC, BoundaryCondition::PEC) => {
-                        // Prevented at construction time; this branch should never be reached
+                        // Prevented at construction time; this branch should never be reached.
                         panic!("Both-PEC boundary condition is not supported")
                     }
                 }
@@ -1227,5 +1249,209 @@ mod tests {
             "Ez has a discontinuity at the layer interface: diff = {:.6}",
             diff
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Multi-layer PEC tests:
+    //   [PEC | n=1.0(d=0.2) | n=2.0(d=0.5) | n=1.0] and its mirror.
+    // These exercise the full physical propagation path through an intermediate
+    // cladding layer between the PEC wall and the guiding core — the original
+    // source of the characteristic-function bug that was fixed.
+    // -----------------------------------------------------------------------
+
+    fn create_multi_pec_left() -> MultiLayer {
+        // [PEC | n=1.0(d=0.2) | n=2.0(d=0.5) | n=1.0(semi-inf)]
+        let mut ml = MultiLayer::new(vec![
+            Layer::new(1.0, 0.2),
+            Layer::new(2.0, 0.5),
+            Layer::new(1.0, 2.0),
+        ]);
+        ml.set_left_boundary(BoundaryCondition::PEC);
+        ml
+    }
+
+    fn create_multi_pec_right() -> MultiLayer {
+        // Mirror of multi_pec_left: [n=1.0(semi-inf) | n=2.0(d=0.5) | n=1.0(d=0.2) | PEC]
+        let mut ml = MultiLayer::new(vec![
+            Layer::new(1.0, 2.0),
+            Layer::new(2.0, 0.5),
+            Layer::new(1.0, 0.2),
+        ]);
+        ml.set_right_boundary(BoundaryCondition::PEC);
+        ml
+    }
+
+    #[test]
+    fn test_multi_pec_left_right_symmetry_te() {
+        // Mirror PEC-left / PEC-right structures must give identical TE neff.
+        let om = 2.0 * PI / 1.55;
+        let left = create_multi_pec_left();
+        let right = create_multi_pec_right();
+        let neff_left = left.solve(om, Polarization::TE);
+        let neff_right = right.solve(om, Polarization::TE);
+        assert_eq!(
+            neff_left.len(),
+            neff_right.len(),
+            "PEC-left and PEC-right must find the same number of TE modes"
+        );
+        for (nl, nr) in neff_left.iter().zip(neff_right.iter()) {
+            assert!(
+                nl.approx_eq(nr, 1e-6),
+                "Multi-layer PEC-left TE {:.9} != PEC-right TE {:.9}",
+                nl,
+                nr
+            );
+        }
+    }
+
+    #[test]
+    fn test_multi_pec_left_right_symmetry_tm() {
+        // Mirror PEC-left / PEC-right structures must give identical TM neff.
+        let om = 2.0 * PI / 1.55;
+        let left = create_multi_pec_left();
+        let right = create_multi_pec_right();
+        let neff_left = left.solve(om, Polarization::TM);
+        let neff_right = right.solve(om, Polarization::TM);
+        assert_eq!(
+            neff_left.len(),
+            neff_right.len(),
+            "PEC-left and PEC-right must find the same number of TM modes"
+        );
+        for (nl, nr) in neff_left.iter().zip(neff_right.iter()) {
+            assert!(
+                nl.approx_eq(nr, 1e-6),
+                "Multi-layer PEC-left TM {:.9} != PEC-right TM {:.9}",
+                nl,
+                nr
+            );
+        }
+    }
+
+    #[test]
+    fn test_multi_pec_left_te_ey_zero_at_wall() {
+        // TE Ey must vanish at the PEC wall (x = 0) for the multi-layer structure.
+        let om = 2.0 * PI / 1.55;
+        let mut ml = create_multi_pec_left();
+        ml.plot_step = 1e-4;
+        let field = ml.field(om, Polarization::TE, 0).unwrap();
+        let ey_at_wall = field.Ey[0];
+        assert!(
+            ey_at_wall.norm() < 1e-6,
+            "Multi-layer PEC-left: Ey at wall should be ~0, got {:?}",
+            ey_at_wall
+        );
+    }
+
+    #[test]
+    fn test_multi_pec_left_tm_ez_zero_at_wall() {
+        // TM Ez must vanish at the PEC wall (x = 0) for the multi-layer structure.
+        let om = 2.0 * PI / 1.55;
+        let mut ml = create_multi_pec_left();
+        ml.plot_step = 1e-4;
+        let field = ml.field(om, Polarization::TM, 0).unwrap();
+        let ez_at_wall = field.Ez[0];
+        assert!(
+            ez_at_wall.norm() < 1e-6,
+            "Multi-layer PEC-left: Ez at wall should be ~0, got {:?}",
+            ez_at_wall
+        );
+    }
+
+    #[test]
+    fn test_multi_pec_left_te_ey_continuous_at_interfaces() {
+        // TE Ey must be continuous at both dielectric interfaces for PEC-left.
+        // Interface 1: n=1.0 | n=2.0 at x = 0.2
+        // Interface 2: n=2.0 | n=1.0 at x = 0.7
+        let om = 2.0 * PI / 1.55;
+        let mut ml = create_multi_pec_left();
+        ml.plot_step = 1e-4;
+        let field = ml.field(om, Polarization::TE, 0).unwrap();
+        for (interface_x, label) in [(0.2_f64, "n=1|n=2"), (0.7_f64, "n=2|n=1")] {
+            let idx = field
+                .x
+                .iter()
+                .position(|&x| (x - interface_x).abs() < 2e-4)
+                .unwrap_or_else(|| panic!("Interface {} not found in grid", label));
+            // Compare one step before and one step after the interface
+            let diff = (field.Ey[idx + 1] - field.Ey[idx - 1]).norm();
+            assert!(
+                diff < 0.1,
+                "Multi-layer PEC-left TE: Ey has discontinuity at {} interface: diff = {:.6}",
+                label,
+                diff
+            );
+        }
+    }
+
+    #[test]
+    fn test_multi_pec_left_tm_ez_continuous_at_interfaces() {
+        // TM Ez must be continuous at both dielectric interfaces for PEC-left.
+        let om = 2.0 * PI / 1.55;
+        let mut ml = create_multi_pec_left();
+        ml.plot_step = 1e-4;
+        let field = ml.field(om, Polarization::TM, 0).unwrap();
+        for (interface_x, label) in [(0.2_f64, "n=1|n=2"), (0.7_f64, "n=2|n=1")] {
+            let idx = field
+                .x
+                .iter()
+                .position(|&x| (x - interface_x).abs() < 2e-4)
+                .unwrap_or_else(|| panic!("Interface {} not found in grid", label));
+            let diff = (field.Ez[idx + 1] - field.Ez[idx - 1]).norm();
+            assert!(
+                diff < 0.1,
+                "Multi-layer PEC-left TM: Ez has discontinuity at {} interface: diff = {:.6}",
+                label,
+                diff
+            );
+        }
+    }
+
+    #[test]
+    fn test_multi_pec_right_te_ey_continuous_at_interfaces() {
+        // TE Ey must be continuous at both dielectric interfaces for PEC-right.
+        // For [n=1(d=2), n=2(d=0.5), n=1(d=0.2), PEC] with xstart = -2.0:
+        // Interface 1: n=1.0 | n=2.0 at x = 0.0
+        // Interface 2: n=2.0 | n=1.0 at x = 0.5
+        let om = 2.0 * PI / 1.55;
+        let mut ml = create_multi_pec_right();
+        ml.plot_step = 1e-4;
+        let field = ml.field(om, Polarization::TE, 0).unwrap();
+        for (interface_x, label) in [(0.0_f64, "n=1|n=2"), (0.5_f64, "n=2|n=1")] {
+            let idx = field
+                .x
+                .iter()
+                .position(|&x| (x - interface_x).abs() < 2e-4)
+                .unwrap_or_else(|| panic!("Interface {} not found in grid", label));
+            let diff = (field.Ey[idx + 1] - field.Ey[idx - 1]).norm();
+            assert!(
+                diff < 0.1,
+                "Multi-layer PEC-right TE: Ey has discontinuity at {} interface: diff = {:.6}",
+                label,
+                diff
+            );
+        }
+    }
+
+    #[test]
+    fn test_multi_pec_right_tm_ez_continuous_at_interfaces() {
+        // TM Ez must be continuous at both dielectric interfaces for PEC-right.
+        let om = 2.0 * PI / 1.55;
+        let mut ml = create_multi_pec_right();
+        ml.plot_step = 1e-4;
+        let field = ml.field(om, Polarization::TM, 0).unwrap();
+        for (interface_x, label) in [(0.0_f64, "n=1|n=2"), (0.5_f64, "n=2|n=1")] {
+            let idx = field
+                .x
+                .iter()
+                .position(|&x| (x - interface_x).abs() < 2e-4)
+                .unwrap_or_else(|| panic!("Interface {} not found in grid", label));
+            let diff = (field.Ez[idx + 1] - field.Ez[idx - 1]).norm();
+            assert!(
+                diff < 0.1,
+                "Multi-layer PEC-right TM: Ez has discontinuity at {} interface: diff = {:.6}",
+                label,
+                diff
+            );
+        }
     }
 }
