@@ -184,7 +184,11 @@ pub fn calculate_t_matrix(
     result
 }
 
-/// Calculates the modal coefficients in each layer of a multilayer system given the modal coefficients in the first layer..
+/// Calculates the modal coefficients in each layer of a multilayer system given the modal coefficients in the first layer.
+///
+/// In the standard (semi-infinite left cladding) case the first layer is the left cladding, which
+/// is semi-infinite and evanescent, so no propagation step is needed before the first interface.
+///
 /// # Arguments:
 /// * `layers` - The layers of the system.
 /// * `k0` - The vacuum wavevector.
@@ -209,6 +213,56 @@ pub fn get_propagation_coefficients_transfer(
         TransferMatrix::matrix_interface(layers[0].n, layers[1].n, k0, k, polarization);
     current_coefficients = transfer_matrix.multiply(&current_coefficients);
     coefficients.push(current_coefficients);
+    for (layer1, layer2) in zip(layers.iter().skip(1), layers.iter().skip(2)) {
+        let propagation_matrix = TransferMatrix::matrix_propagation(layer1.n, layer1.d, k0, k);
+        current_coefficients = propagation_matrix.multiply(&current_coefficients);
+        let interface_matrix =
+            TransferMatrix::matrix_interface(layer1.n, layer2.n, k0, k, polarization);
+        current_coefficients = interface_matrix.multiply(&current_coefficients);
+        coefficients.push(current_coefficients);
+    }
+    coefficients
+}
+
+/// Calculates the modal coefficients in each layer for a PEC-left boundary structure.
+///
+/// Unlike the standard case, `layers[0]` here is the first *finite* layer adjacent to the PEC
+/// wall. The supplied `(a, b)` are the coefficients **at x = 0** (the PEC wall, i.e. the left
+/// edge of `layers[0]`). We must therefore propagate through `layers[0]` before applying the
+/// first interface matrix, so that the coefficients stored for every layer are referenced to
+/// their respective left edges.
+///
+/// # Arguments:
+/// * `layers` - The layers of the system (no left cladding; first element is adjacent to PEC).
+/// * `k0` - The vacuum wavevector.
+/// * `k` - The parallel component of the wavevector.
+/// * `polarization` - The polarization of the light.
+/// * `a` - The forward modal coefficient at the PEC wall (left edge of `layers[0]`).
+/// * `b` - The backward modal coefficient at the PEC wall (left edge of `layers[0]`).
+/// # Returns:
+/// The modal coefficients at the left edge of each layer.
+pub fn get_propagation_coefficients_pec_left(
+    layers: &[Layer],
+    k0: f64,
+    k: f64,
+    polarization: Polarization,
+    a: Complex<f64>,
+    b: Complex<f64>,
+) -> Vec<LayerCoefficientVector> {
+    let mut coefficients: Vec<LayerCoefficientVector> = Vec::new();
+    let mut current_coefficients = LayerCoefficientVector::new(a, b);
+    // Layer 0: coefficients are defined at x=0 (the PEC wall / left edge of layer 0).
+    coefficients.push(current_coefficients);
+
+    // Propagate through layer 0 to reach its right edge, then cross the interface into layer 1.
+    let propagation_matrix = TransferMatrix::matrix_propagation(layers[0].n, layers[0].d, k0, k);
+    current_coefficients = propagation_matrix.multiply(&current_coefficients);
+    let interface_matrix =
+        TransferMatrix::matrix_interface(layers[0].n, layers[1].n, k0, k, polarization);
+    current_coefficients = interface_matrix.multiply(&current_coefficients);
+    coefficients.push(current_coefficients);
+
+    // Continue: for each subsequent pair of layers, propagate then cross the interface.
     for (layer1, layer2) in zip(layers.iter().skip(1), layers.iter().skip(2)) {
         let propagation_matrix = TransferMatrix::matrix_propagation(layer1.n, layer1.d, k0, k);
         current_coefficients = propagation_matrix.multiply(&current_coefficients);

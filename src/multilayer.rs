@@ -18,7 +18,10 @@ use crate::enums::Polarization;
 use crate::layer::{Layer, LayerCoefficientVector, PEC};
 use crate::scattering_matrix::calculate_s_matrix;
 use crate::transfer_matrix::TransferMatrix;
-use crate::transfer_matrix::{calculate_t_matrix, get_propagation_coefficients_transfer};
+use crate::transfer_matrix::{
+    calculate_t_matrix, get_propagation_coefficients_pec_left,
+    get_propagation_coefficients_transfer,
+};
 use cumsum::cumsum;
 use find_peaks::PeakFinder;
 use num_complex::Complex;
@@ -540,9 +543,18 @@ impl MultiLayer {
         b: Complex<f64>,
     ) -> Vec<LayerCoefficientVector> {
         match self.backend {
-            BackEnd::Transfer => {
-                get_propagation_coefficients_transfer(&self.layers, k0, k, polarization, a, b)
-            }
+            BackEnd::Transfer => match self.left_bc {
+                BoundaryCondition::PEC => {
+                    // For PEC-left, layers[0] is the first finite layer adjacent to the PEC
+                    // wall. We must propagate through it before crossing the first interface,
+                    // which the standard function skips (it assumes layers[0] is a semi-infinite
+                    // cladding where no propagation is needed).
+                    get_propagation_coefficients_pec_left(&self.layers, k0, k, polarization, a, b)
+                }
+                BoundaryCondition::SemiInfinite => {
+                    get_propagation_coefficients_transfer(&self.layers, k0, k, polarization, a, b)
+                }
+            },
             BackEnd::Scattering => {
                 panic!("Not implemented yet")
             }
@@ -1078,7 +1090,12 @@ mod tests {
     }
 
     #[test]
-    fn test_pec_left_tm_matches_odd_mode_of_full_slab() {
+    fn test_pec_left_tm_matches_even_hz_mode_of_full_slab() {
+        // For TM modes the "main" field component tracked by the transfer matrix is Ez (not Hz).
+        // In a symmetric slab the TM *even* mode (even Hz profile) has an *antisymmetric* Ez
+        // profile (Ez ∝ dHz/dx ∝ sin), so Ez = 0 at the centre.  A PEC wall at x = 0 enforces
+        // Ez = 0, therefore the PEC-left half slab matches TM mode 0 (the even-Hz / highest-neff
+        // mode) of the full slab – not TM mode 1 as one might naively expect from the TE analogy.
         let om = 2.0 * PI / 1.55;
         let half_slab = create_pec_left_half_slab();
         let full_slab = create_slab_multilayer();
@@ -1090,10 +1107,10 @@ mod tests {
             "PEC half slab should have exactly 1 TM mode"
         );
         assert!(
-            neff_half[0].approx_eq(&neff_full[1], 1e-6),
-            "PEC-left TM neff {:.9} != odd mode of full slab {:.9}",
+            neff_half[0].approx_eq(&neff_full[0], 1e-6),
+            "PEC-left TM neff {:.9} != even-Hz mode of full slab {:.9}",
             neff_half[0],
-            neff_full[1]
+            neff_full[0]
         );
     }
 
@@ -1136,7 +1153,7 @@ mod tests {
 
     #[test]
     fn test_pec_field_satisfies_bc_te() {
-        // The TE field of the PEC-left half slab must be zero at x=0 (the PEC wall)
+        // The TE field of the PEC-left half slab must satisfy Ey = 0 at x=0 (the PEC wall).
         let om = 2.0 * PI / 1.55;
         let mut ml = create_pec_left_half_slab();
         ml.plot_step = 1e-4;
@@ -1147,6 +1164,68 @@ mod tests {
             ey_at_wall.norm() < 1e-6,
             "Ey at PEC wall should be ~0, got {:?}",
             ey_at_wall
+        );
+    }
+
+    #[test]
+    fn test_pec_field_satisfies_bc_tm() {
+        // The TM field of the PEC-left half slab must satisfy Ez = 0 at x=0 (the PEC wall).
+        // Note: for TM the even-Hz mode has antisymmetric Ez (Ez = 0 at the symmetry plane),
+        // so it is this mode (mode 0, highest neff) that the PEC selects.
+        let om = 2.0 * PI / 1.55;
+        let mut ml = create_pec_left_half_slab();
+        ml.plot_step = 1e-4;
+        let field = ml.field(om, Polarization::TM, 0).unwrap();
+        // x[0] is the first grid point, at or very near x=0 (the PEC wall)
+        let ez_at_wall = field.Ez[0];
+        assert!(
+            ez_at_wall.norm() < 1e-6,
+            "Ez at PEC wall should be ~0, got {:?}",
+            ez_at_wall
+        );
+    }
+
+    #[test]
+    fn test_pec_field_continuity_te() {
+        // Verify that the TE Ey field has no discontinuities at layer interfaces for PEC-left.
+        let om = 2.0 * PI / 1.55;
+        let mut ml = create_pec_left_half_slab();
+        ml.plot_step = 1e-4;
+        let field = ml.field(om, Polarization::TE, 0).unwrap();
+        // Find the index corresponding to x ≈ layers[0].d = 0.3 (the only interior interface)
+        let interface_x = 0.3_f64;
+        let idx = field
+            .x
+            .iter()
+            .position(|&x| (x - interface_x).abs() < 2e-4)
+            .expect("Interface x not found in grid");
+        // The field just before and just after the interface should be nearly equal
+        let diff = (field.Ey[idx] - field.Ey[idx - 1]).norm();
+        assert!(
+            diff < 1e-2,
+            "Ey has a discontinuity at the layer interface: diff = {:.6}",
+            diff
+        );
+    }
+
+    #[test]
+    fn test_pec_field_continuity_tm() {
+        // Verify that the TM Ez field has no discontinuities at layer interfaces for PEC-left.
+        let om = 2.0 * PI / 1.55;
+        let mut ml = create_pec_left_half_slab();
+        ml.plot_step = 1e-4;
+        let field = ml.field(om, Polarization::TM, 0).unwrap();
+        let interface_x = 0.3_f64;
+        let idx = field
+            .x
+            .iter()
+            .position(|&x| (x - interface_x).abs() < 2e-4)
+            .expect("Interface x not found in grid");
+        let diff = (field.Ez[idx] - field.Ez[idx - 1]).norm();
+        assert!(
+            diff < 1e-2,
+            "Ez has a discontinuity at the layer interface: diff = {:.6}",
+            diff
         );
     }
 }
