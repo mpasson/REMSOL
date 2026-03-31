@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.4 (2026-03-31)
+
+### Bug Fixes
+
+- Add generate-import-lib pyo3 feature for Windows x86 cross-compilation
+  ([`f9c6a7a`](https://github.com/mpasson/REMSOL/commit/f9c6a7a5b2d88cc9fa63baf317c3a88b0da5a346))
+
+
 ## v0.2.3 (2026-03-31)
 
 ### Bug Fixes
