@@ -201,6 +201,41 @@ Key `MultiLayer` methods:
 
 ---
 
+## Secrets and API Access
+
+Sensitive credentials (e.g. API tokens) are stored in a **`.secrets`** file at the
+repository root. This file is listed in `.gitignore` and must never be committed.
+
+Format:
+```
+GITHUB_TOKEN=github_pat_...
+```
+
+To access the GitHub API (e.g. to fetch Actions logs), read the token from `.secrets`:
+
+```bash
+# Read token and use it
+source .secrets
+curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+     -H "Accept: application/vnd.github+json" \
+     "https://api.github.com/repos/mpasson/REMSOL/actions/runs?per_page=5"
+```
+
+Or in a single call without sourcing:
+```bash
+GITHUB_TOKEN=$(grep GITHUB_TOKEN .secrets | cut -d= -f2)
+curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+     -H "Accept: application/vnd.github+json" \
+     "https://api.github.com/repos/mpasson/REMSOL/..."
+```
+
+The token has **read-only** access to the `mpasson/REMSOL` repository:
+- **Actions** — read workflow runs and logs
+- **Contents** — read repository files
+- **Metadata** — read repository metadata
+
+---
+
 ## Release Workflow
 
 Releases are managed locally with `python-semantic-release` and then pushed to trigger

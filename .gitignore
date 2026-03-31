@@ -8,3 +8,4 @@ Cargo.lock
 dist
 docs/_build
 .DS_Store
+.secrets
