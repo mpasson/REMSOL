@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.2.1 (2026-03-31)
+
+### Bug Fixes
+
+- Bump setup-uv to v6 and require clean working tree before release
+  ([`0a35868`](https://github.com/mpasson/REMSOL/commit/0a35868d5de7ad1b0081da6f47712835760b5831))
+
+
 ## v0.2.0 (2026-03-31)
 
 ### Bug Fixes
