@@ -1,6 +1,20 @@
 # CHANGELOG
 
 
+## v0.2.3 (2026-03-31)
+
+### Bug Fixes
+
+- Define PYTHON_VERSION as a single top-level env var in publish workflow
+  ([`a09343f`](https://github.com/mpasson/REMSOL/commit/a09343f17808cc68d3a44eecd0aacf8dca2f65f1))
+
+- Fixed python version for uv environment
+  ([`e81a6fd`](https://github.com/mpasson/REMSOL/commit/e81a6fd96a6d8188e92ac960e1290a4ea23350d5))
+
+- Pin maturin to python3.13 and replace setup-python with uv on windows/macos
+  ([`850a51f`](https://github.com/mpasson/REMSOL/commit/850a51f1645f99f67e1551281e8cb0b05a1cd646))
+
+
 ## v0.2.2 (2026-03-31)
 
 ### Bug Fixes
