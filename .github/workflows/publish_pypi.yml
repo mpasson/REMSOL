@@ -5,6 +5,9 @@
 #
 name: build
 
+env:
+  PYTHON_VERSION: "3.13"
+
 on:
   push:
     tags:
@@ -37,7 +40,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist -i python3.13
+          args: --release --out dist -i python${{ env.PYTHON_VERSION }}
           sccache: "true"
           manylinux: auto
       - name: Upload wheels
@@ -65,7 +68,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist -i python3.13
+          args: --release --out dist -i python${{ env.PYTHON_VERSION }}
           sccache: "true"
           manylinux: musllinux_1_2
       - name: Upload wheels
@@ -91,7 +94,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist -i python3.13
+          args: --release --out dist -i python${{ env.PYTHON_VERSION }}
           sccache: "true"
       - name: Upload wheels
         uses: actions/upload-artifact@v4
@@ -114,7 +117,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.platform.target }}
-          args: --release --out dist -i python3.13
+          args: --release --out dist -i python${{ env.PYTHON_VERSION }}
           sccache: "true"
       - name: Upload wheels
         uses: actions/upload-artifact@v4
