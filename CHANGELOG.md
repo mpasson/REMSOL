@@ -1,6 +1,24 @@
 # CHANGELOG
 
 
+## v0.2.2 (2026-03-31)
+
+### Bug Fixes
+
+- Set PYO3_USE_ABI3_FORWARD_COMPATIBILITY for Python 3.14 and bump all action versions to v6
+  ([`f843bcf`](https://github.com/mpasson/REMSOL/commit/f843bcf73395e4afd00b2126d782d21b8f4fb364))
+
+### Build System
+
+- Add .secrets to .gitignore and document GitHub API access pattern in rules
+  ([`7450e81`](https://github.com/mpasson/REMSOL/commit/7450e816d167dc3fc689c401332194906bfa8c7c))
+
+### Documentation
+
+- Expand README with capabilities summary, quick example, and formatting improvements
+  ([`a9f8e30`](https://github.com/mpasson/REMSOL/commit/a9f8e3003650ea69b9d48adb2a5671b162a7e6ed))
+
+
 ## v0.2.1 (2026-03-31)
 
 ### Bug Fixes
