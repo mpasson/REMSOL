@@ -20,5 +20,7 @@ fn remsol(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MultiLayer>()?;
     m.add_class::<IndexData>()?;
     // m.add_class::<PythonFieldData>()?;
+    m.add_class::<BoundaryCondition>()?;
+    m.add_class::<PEC>()?;
     Ok(())
 }

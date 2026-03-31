@@ -52,3 +52,23 @@ impl Layer {
         Ok(format!("Layer(n={}, d={})", self.n, self.d))
     }
 }
+
+/// Boundary marker struct representing a Perfect Electric Conductor (PEC).
+/// Place as the first or last element of a MultiLayer list to apply a PEC boundary condition.
+#[pyclass]
+#[derive(Debug, Copy, Clone)]
+pub struct PEC;
+
+#[pymethods]
+impl PEC {
+    /// Create a new PEC boundary marker.
+    #[new]
+    pub fn new() -> PEC {
+        PEC
+    }
+
+    /// Define how a PEC is printed in Python.
+    fn __repr__(&self) -> PyResult<String> {
+        Ok(String::from("PEC()"))
+    }
+}
