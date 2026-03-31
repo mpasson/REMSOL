@@ -1,6 +1,24 @@
 # CHANGELOG
 
 
+## v0.2.0 (2026-03-31)
+
+### Bug Fixes
+
+- Set default accuracy to 10 instead of 12
+  ([`14a1768`](https://github.com/mpasson/REMSOL/commit/14a176819a0de5d8c0e67a06f941a13b1d437da4))
+
+### Build System
+
+- Added .zed folder to tracked files
+  ([`ef8efff`](https://github.com/mpasson/REMSOL/commit/ef8effff7e367e6713d1c5f5b596beb631c8dd0a))
+
+### Features
+
+- Added PEC as possible booundary condition on either side
+  ([`030684a`](https://github.com/mpasson/REMSOL/commit/030684afd0d2692875067ccd58b6bd65b0b4b476))
+
+
 ## v0.1.3 (2025-05-12)
 
 ### Build System
